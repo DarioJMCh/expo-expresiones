@@ -9,12 +9,15 @@
 <style>
   :root {
     --bg: #0c0c0c;
-    --panel: #151515;
+    --panel: #16181d;
+    --card: #1b1e24;
     --text: #f2f2f2;
+    --muted: #9aa0aa;
     --cyan: #00e5ff;
     --yellow: #ffd600;
     --green: #00e676;
     --red: #ff3d3d;
+    --border: #2a2e36;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -23,11 +26,11 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     overscroll-behavior: none;
   }
-  header {
-    text-align: center; padding: 10px 12px 4px;
-  }
+  header { text-align: center; padding: 10px 12px 4px; }
   header h1 { margin: 0; font-size: 1.05rem; letter-spacing: .5px; color: var(--cyan); }
-  header p { margin: 3px 0 0; font-size: .72rem; color: var(--yellow); }
+  header .autor { margin: 5px 0 0; font-size: .82rem; color: #fff; font-weight: 600; }
+  header .autor b { color: var(--cyan); }
+  header .nota { margin: 3px 0 0; font-size: .68rem; color: var(--yellow); }
 
   #stage {
     position: relative;
@@ -38,76 +41,75 @@
     overflow: hidden;
     border-radius: 10px;
   }
-  #video, #overlay {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-  }
+  #video, #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
   #video { object-fit: cover; }
-  /* Espejo para cámara frontal */
   .mirror #video, .mirror #overlay { transform: scaleX(-1); }
 
   #topbar {
     position: absolute; top: 0; left: 0; right: 0;
-    padding: 8px 10px;
-    background: linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,0));
-    font-size: .8rem; pointer-events: none;
+    padding: 8px 12px;
+    background: linear-gradient(180deg, rgba(0,0,0,.7), rgba(0,0,0,0));
+    pointer-events: none;
   }
-  #domLabel { font-weight: 700; font-size: 1rem; }
+  #topbar .exp { font-size: 1.05rem; font-weight: 700; }
+  #topbar .fps { font-size: .7rem; color: var(--green); opacity: .9; }
 
-  #panel {
-    width: 100%; max-width: 640px;
-    margin: 10px auto 0;
-    background: var(--panel);
+  main { max-width: 640px; margin: 0 auto; padding: 0 10px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 12px 14px 4px;
+    padding: 10px 14px;
+    margin-top: 10px;
   }
-  .bar-row { margin-bottom: 10px; }
-  .bar-head {
-    display: flex; justify-content: space-between;
-    font-size: .8rem; margin-bottom: 3px;
+  .card h3 {
+    margin: 0 0 8px; font-size: .74rem; color: var(--cyan);
+    text-transform: uppercase; letter-spacing: .6px; font-weight: 700;
   }
-  .bar-track {
-    height: 14px; background: #2a2a2a; border-radius: 7px; overflow: hidden;
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+  .row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: .84rem; padding: 3px 0; color: var(--muted);
+    gap: 10px;
   }
-  .bar-fill {
-    height: 100%; width: 0%;
-    border-radius: 7px;
-    transition: width .18s ease-out;
+  .row b { color: #fff; font-weight: 600; text-align: right; }
+
+  .badge {
+    padding: 2px 9px; border-radius: 12px; font-size: .78rem; font-weight: 600;
+    background: #2a2e36; color: var(--muted); white-space: nowrap;
   }
+  .badge.on  { background: rgba(0,230,118,.18); color: var(--green); }
+  .badge.off { background: rgba(255,61,61,.16); color: #ff7a7a; }
+
+  /* Barras de emociones */
+  .bar-row { margin-bottom: 9px; }
+  .bar-head { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: 3px; }
+  .bar-track { height: 13px; background: #24272f; border-radius: 7px; overflow: hidden; }
+  .bar-fill { height: 100%; width: 0%; border-radius: 7px; transition: width .18s ease-out; }
   .dom .bar-head { font-weight: 700; }
 
   #controls {
-    max-width: 640px; margin: 10px auto 24px;
     display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
-    padding: 0 12px;
+    margin-top: 12px;
   }
   button {
-    background: #1f1f1f; color: var(--text);
+    background: #1f232b; color: var(--text);
     border: 1px solid #333; border-radius: 8px;
-    padding: 11px 16px; font-size: .9rem;
-    cursor: pointer;
+    padding: 11px 16px; font-size: .9rem; cursor: pointer;
   }
-  button:active { background: #2c2c2c; }
+  button:active { background: #2c313b; }
   #startBtn { background: var(--cyan); color: #002; border: none; font-weight: 700; }
 
   #status {
-    max-width: 640px; margin: 6px auto; text-align: center;
-    font-size: .8rem; color: var(--yellow); min-height: 1em;
-    padding: 0 12px;
+    text-align: center; font-size: .8rem; color: var(--yellow);
+    min-height: 1em; margin: 8px 0;
   }
-  #fps { color: var(--green); }
-  .hidden { display: none !important; }
-
-  header .autor {
-    margin: 5px 0 0; font-size: .82rem; color: #fff; font-weight: 600;
-  }
-  header .autor b { color: var(--cyan); }
-
   footer {
-    max-width: 640px; margin: 4px auto 26px;
-    text-align: center; padding: 0 12px;
-    font-size: .72rem; color: #9a9a9a; line-height: 1.5;
+    text-align: center; padding: 6px 12px 26px;
+    font-size: .72rem; color: #9a9a9a;
   }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -115,35 +117,76 @@
 <header>
   <h1>EXPO — EXPRESIONES FACIALES</h1>
   <p class="autor">Creado por <b>Dario Jose Mendoza Chipantasi</b></p>
-  <p>Estimación visual, no un estado emocional real</p>
+  <p class="nota">Edad, género y expresiones son estimaciones visuales con margen de error</p>
 </header>
 
 <div id="stage" class="mirror">
   <video id="video" autoplay muted playsinline></video>
   <canvas id="overlay"></canvas>
   <div id="topbar">
-    <div>Expresión: <span id="domLabel">—</span></div>
-    <div style="font-size:.74rem; opacity:.9">
-      Edad aprox: <span id="age">—</span> · <span id="gender">—</span>
-    </div>
-    <div style="font-size:.72rem; opacity:.85">
-      Distancia aprox: <span id="dist">—</span> · <span id="fps">FPS 0</span>
-    </div>
+    <div class="exp">Expresión: <span id="domLabel">—</span></div>
+    <div class="fps"><span id="fps">FPS 0</span></div>
   </div>
 </div>
 
-<div id="panel"></div>
+<main>
+  <!-- PERSONA -->
+  <div class="card">
+    <h3>Persona</h3>
+    <div class="grid2">
+      <div class="row"><span>Edad aprox</span><b id="v_age">—</b></div>
+      <div class="row"><span>Género</span><b id="v_gender">—</b></div>
+      <div class="row"><span>Rango</span><b id="v_agegroup">—</b></div>
+      <div class="row"><span>Distancia aprox</span><b id="v_dist">—</b></div>
+    </div>
+  </div>
 
-<div id="controls">
-  <button id="startBtn">▶ Iniciar cámara</button>
-  <button id="switchBtn" class="hidden">🔄 Cambiar cámara</button>
-</div>
+  <!-- GESTOS -->
+  <div class="card">
+    <h3>Gestos faciales (en vivo)</h3>
+    <div class="grid2">
+      <div class="row"><span>Ojos</span><span id="v_eyes" class="badge">—</span></div>
+      <div class="row"><span>Boca</span><span id="v_mouth" class="badge">—</span></div>
+      <div class="row"><span>Sonrisa</span><span id="v_smile" class="badge">—</span></div>
+      <div class="row"><span>Parpadeos</span><b id="v_blinks">0</b></div>
+    </div>
+  </div>
 
-<div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
+  <!-- CABEZA -->
+  <div class="card">
+    <h3>Orientación de la cabeza</h3>
+    <div class="grid2">
+      <div class="row"><span>Orientación</span><b id="v_orient">—</b></div>
+      <div class="row"><span>Inclinación</span><b id="v_roll">—</b></div>
+    </div>
+  </div>
 
-<footer>
-  Proyecto de tesis — Dario Jose Mendoza Chipantasi
-</footer>
+  <!-- EMOCIONES -->
+  <div class="card">
+    <h3>Expresión facial</h3>
+    <div id="bars"></div>
+  </div>
+
+  <!-- CARACTERISTICAS -->
+  <div class="card">
+    <h3>Características del rostro</h3>
+    <div class="grid2">
+      <div class="row"><span>Confianza</span><b id="v_score">—</b></div>
+      <div class="row"><span>Distancia entre ojos</span><b id="v_eyedist">—</b></div>
+      <div class="row"><span>Proporción a/h</span><b id="v_ratio">—</b></div>
+      <div class="row"><span>Simetría</span><b id="v_sym">—</b></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="startBtn">▶ Iniciar cámara</button>
+    <button id="switchBtn" class="hidden">🔄 Cambiar cámara</button>
+  </div>
+
+  <div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
+</main>
+
+<footer>Proyecto de tesis — Dario Jose Mendoza Chipantasi</footer>
 
 <!-- face-api.js (fork mantenido por @vladmandic) -->
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
@@ -161,57 +204,64 @@ const EMO = [
   { key: "disgusted", es: "Disgusto",       color: "#ff8a3d" },
 ];
 
-const video   = document.getElementById("video");
-const overlay = document.getElementById("overlay");
-const octx    = overlay.getContext("2d");
-const panel   = document.getElementById("panel");
-const stage   = document.getElementById("stage");
-const statusEl= document.getElementById("status");
-const domLabel= document.getElementById("domLabel");
-const distEl  = document.getElementById("dist");
-const ageEl   = document.getElementById("age");
-const genderEl= document.getElementById("gender");
-const fpsEl   = document.getElementById("fps");
-const startBtn= document.getElementById("startBtn");
-const switchBtn=document.getElementById("switchBtn");
+// ---- Referencias DOM ----
+const $ = id => document.getElementById(id);
+const video   = $("video"), overlay = $("overlay"), octx = overlay.getContext("2d");
+const stage   = $("stage"), statusEl = $("status");
+const domLabel= $("domLabel"), fpsEl = $("fps");
+const startBtn= $("startBtn"), switchBtn = $("switchBtn");
 
-let stream = null;
-let facing = "user";       // frontal por defecto
-let running = false;
-let modelsReady = false;
+let stream = null, facing = "user", running = false, modelsReady = false;
 let lastT = performance.now();
-let ageSmooth = null;      // edad suavizada para que no salte tanto
+let ageSmooth = null;
+let eyesWereClosed = false, blinkCount = 0;
 
-// Rango de edad como en el script de escritorio
-function grupoEdad(edad) {
-  if (edad < 13) return "Niño/a";
-  if (edad < 18) return "Adolescente";
-  if (edad < 30) return "Joven adulto";
-  if (edad < 45) return "Adulto joven";
-  if (edad < 60) return "Adulto";
+function grupoEdad(e) {
+  if (e < 13) return "Niño/a";
+  if (e < 18) return "Adolescente";
+  if (e < 30) return "Joven adulto";
+  if (e < 45) return "Adulto joven";
+  if (e < 60) return "Adulto";
   return "Adulto mayor";
 }
 
-// Construir barras
+// ---- Barras de emociones ----
 const bars = {};
+const barsBox = $("bars");
 for (const e of EMO) {
   const row = document.createElement("div");
   row.className = "bar-row";
-  row.id = "row_" + e.key;
   row.innerHTML =
     '<div class="bar-head"><span>'+e.es+'</span><span class="val">0.0%</span></div>' +
     '<div class="bar-track"><div class="bar-fill" style="background:'+e.color+'"></div></div>';
-  panel.appendChild(row);
-  bars[e.key] = {
-    row,
-    fill: row.querySelector(".bar-fill"),
-    val:  row.querySelector(".val"),
-  };
+  barsBox.appendChild(row);
+  bars[e.key] = { row, fill: row.querySelector(".bar-fill"), val: row.querySelector(".val") };
+}
+
+// ---- Utilidades geométricas ----
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const centroid = pts => {
+  let x = 0, y = 0;
+  for (const p of pts) { x += p.x; y += p.y; }
+  return { x: x / pts.length, y: y / pts.length };
+};
+// Eye Aspect Ratio: bajo = ojo cerrado
+function ear(eye) {
+  const A = dist(eye[1], eye[5]);
+  const B = dist(eye[2], eye[4]);
+  const C = dist(eye[0], eye[3]);
+  return (A + B) / (2 * C);
+}
+
+function setBadge(el, text, on) {
+  el.textContent = text;
+  el.className = "badge " + (on ? "on" : "off");
 }
 
 async function loadModels() {
   statusEl.textContent = "Cargando modelos de IA...";
   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
   await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
   await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
   modelsReady = true;
@@ -221,7 +271,6 @@ async function loadModels() {
 async function startCamera() {
   try {
     if (!modelsReady) await loadModels();
-
     if (stream) stream.getTracks().forEach(t => t.stop());
 
     statusEl.textContent = "Solicitando cámara...";
@@ -233,7 +282,6 @@ async function startCamera() {
     await video.play();
 
     stage.classList.toggle("mirror", facing === "user");
-
     switchBtn.classList.remove("hidden");
     startBtn.textContent = "⏸ Detener";
     statusEl.textContent = "";
@@ -252,10 +300,7 @@ function stopCamera() {
   statusEl.textContent = "Cámara detenida.";
 }
 
-startBtn.addEventListener("click", () => {
-  if (running) stopCamera(); else startCamera();
-});
-
+startBtn.addEventListener("click", () => { running ? stopCamera() : startCamera(); });
 switchBtn.addEventListener("click", async () => {
   facing = (facing === "user") ? "environment" : "user";
   if (running) await startCamera();
@@ -263,16 +308,34 @@ switchBtn.addEventListener("click", async () => {
 
 const detectorOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
 
+function limpiarSinRostro() {
+  domLabel.textContent = "no detectado";
+  domLabel.style.color = "#ffd600";
+  ageSmooth = null;
+  for (const e of EMO) {
+    bars[e.key].fill.style.width = "0%";
+    bars[e.key].val.textContent = "0.0%";
+    bars[e.key].row.classList.remove("dom");
+  }
+  const dash = ["v_age","v_gender","v_agegroup","v_dist","v_orient","v_roll",
+                "v_score","v_eyedist","v_ratio","v_sym"];
+  dash.forEach(id => $(id).textContent = "—");
+  setBadge($("v_eyes"), "—", false);  $("v_eyes").className = "badge";
+  setBadge($("v_mouth"), "—", false); $("v_mouth").className = "badge";
+  setBadge($("v_smile"), "—", false); $("v_smile").className = "badge";
+}
+
 async function loop() {
   if (!running) return;
-
   const vw = video.videoWidth, vh = video.videoHeight;
+
   if (vw && vh) {
     if (overlay.width !== vw)  overlay.width  = vw;
     if (overlay.height !== vh) overlay.height = vh;
 
     const res = await faceapi
       .detectSingleFace(video, detectorOpts)
+      .withFaceLandmarks()
       .withFaceExpressions()
       .withAgeAndGender();
 
@@ -281,8 +344,9 @@ async function loop() {
     if (res) {
       const exp = res.expressions;
       const box = res.detection.box;
+      const p   = res.landmarks.positions;   // 68 puntos
 
-      // Emoción dominante
+      // ---- Emoción dominante + barras ----
       let domKey = "neutral", domVal = -1;
       for (const e of EMO) {
         const v = exp[e.key] ?? 0;
@@ -291,8 +355,6 @@ async function loop() {
       const domEmo = EMO.find(e => e.key === domKey);
       domLabel.textContent = domEmo.es;
       domLabel.style.color = domEmo.color;
-
-      // Barras
       for (const e of EMO) {
         const pct = (exp[e.key] ?? 0) * 100;
         bars[e.key].fill.style.width = pct.toFixed(1) + "%";
@@ -300,39 +362,78 @@ async function loop() {
         bars[e.key].row.classList.toggle("dom", e.key === domKey);
       }
 
-      // Recuadro sobre el rostro
+      // ---- Edad (suavizada) + género ----
+      ageSmooth = (ageSmooth === null) ? res.age : ageSmooth + (res.age - ageSmooth) * 0.15;
+      const edad = Math.round(ageSmooth);
+      $("v_age").textContent = edad + " años";
+      $("v_agegroup").textContent = grupoEdad(edad);
+      const genEs = (res.gender === "male") ? "Hombre" : "Mujer";
+      $("v_gender").textContent = genEs + " (" + Math.round(res.genderProbability * 100) + "%)";
+
+      // ---- Gestos con landmarks ----
+      const le = res.landmarks.getLeftEye();
+      const re = res.landmarks.getRightEye();
+      const leC = centroid(le), reC = centroid(re);
+      const avgEar = (ear(le) + ear(re)) / 2;
+      const ojosCerrados = avgEar < 0.21;
+
+      // Contador de parpadeos (transición cerrado -> abierto)
+      if (ojosCerrados) {
+        eyesWereClosed = true;
+      } else if (eyesWereClosed) {
+        blinkCount++;
+        eyesWereClosed = false;
+        $("v_blinks").textContent = blinkCount;
+      }
+      setBadge($("v_eyes"), ojosCerrados ? "Cerrados" : "Abiertos", !ojosCerrados);
+
+      // Boca (apertura vertical vs ancho)
+      const mar = dist(p[62], p[66]) / dist(p[48], p[54]);
+      const bocaAbierta = mar > 0.35;
+      setBadge($("v_mouth"), bocaAbierta ? "Abierta" : "Cerrada", bocaAbierta);
+
+      // Sonrisa (usa la expresión "feliz", robusta)
+      const sonriendo = (exp.happy ?? 0) > 0.5;
+      setBadge($("v_smile"), sonriendo ? "Sí 🙂" : "No", sonriendo);
+
+      // ---- Orientación de la cabeza ----
+      const faceW = dist(p[0], p[16]);
+      const midBrow = { x: (p[19].x + p[24].x) / 2, y: (p[19].y + p[24].y) / 2 };
+      const faceH = dist(p[8], midBrow);
+      const eyeMidX = (leC.x + reC.x) / 2;
+      let yaw = (p[30].x - eyeMidX) / faceW;           // + / -
+      // Compensar espejo de cámara frontal para que coincida con lo que se ve
+      if (facing === "user") yaw = -yaw;
+      let orient;
+      if (Math.abs(yaw) < 0.06) orient = "De frente";
+      else orient = "Girada a la " + (yaw > 0 ? "derecha" : "izquierda");
+      $("v_orient").textContent = orient;
+
+      // Inclinación (roll) por ángulo entre ojos
+      let roll = Math.atan2(reC.y - leC.y, reC.x - leC.x) * 180 / Math.PI;
+      if (facing === "user") roll = -roll;
+      const rollAbs = Math.abs(roll);
+      $("v_roll").textContent = rollAbs < 4 ? "Recta"
+        : rollAbs.toFixed(0) + "° " + (roll > 0 ? "der." : "izq.");
+
+      // ---- Características / medidas ----
+      $("v_score").textContent = Math.round(res.detection.score * 100) + "%";
+      $("v_eyedist").textContent = Math.round(dist(leC, reC)) + " px";
+      $("v_ratio").textContent = (faceW / faceH).toFixed(2);
+      const dL = dist(p[30], p[0]), dR = dist(p[30], p[16]);
+      const sym = 100 - Math.abs(dL - dR) / ((dL + dR) / 2) * 100;
+      $("v_sym").textContent = Math.max(0, Math.round(sym)) + "%";
+
+      // Distancia aproximada por ancho del rostro (~15 cm de ancho real)
+      const distM = (0.15 * (vw * 1.0)) / box.width;
+      $("v_dist").textContent = distM.toFixed(2) + " m";
+
+      // ---- Recuadro sobre el rostro ----
       octx.strokeStyle = domEmo.color;
       octx.lineWidth = Math.max(2, vw * 0.006);
       octx.strokeRect(box.x, box.y, box.width, box.height);
-
-      // Edad (suavizada) y grupo de edad
-      const edadRaw = res.age;
-      ageSmooth = (ageSmooth === null) ? edadRaw : ageSmooth + (edadRaw - ageSmooth) * 0.15;
-      const edad = Math.round(ageSmooth);
-      ageEl.textContent = edad + " años · " + grupoEdad(edad);
-
-      // Género con % de confianza
-      const genEs = (res.gender === "male") ? "Hombre" : "Mujer";
-      const genPct = Math.round(res.genderProbability * 100);
-      genderEl.textContent = genEs + " (" + genPct + "%)";
-
-      // Distancia aproximada por ancho del rostro (~15 cm de ancho real)
-      const REAL_FACE_W = 0.15;    // metros
-      const FOCAL = vw * 1.0;      // aprox para lente típico de celular
-      const distM = (REAL_FACE_W * FOCAL) / box.width;
-      distEl.textContent = distM.toFixed(2) + " m";
     } else {
-      domLabel.textContent = "no detectado";
-      domLabel.style.color = "#ffd600";
-      distEl.textContent = "—";
-      ageEl.textContent = "—";
-      genderEl.textContent = "—";
-      ageSmooth = null;
-      for (const e of EMO) {
-        bars[e.key].fill.style.width = "0%";
-        bars[e.key].val.textContent = "0.0%";
-        bars[e.key].row.classList.remove("dom");
-      }
+      limpiarSinRostro();
     }
   }
 
