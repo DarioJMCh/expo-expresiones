@@ -98,18 +98,23 @@
   #fps { color: var(--green); }
   .hidden { display: none !important; }
 
+  header .autor {
+    margin: 5px 0 0; font-size: .82rem; color: #fff; font-weight: 600;
+  }
+  header .autor b { color: var(--cyan); }
+
   footer {
     max-width: 640px; margin: 4px auto 26px;
     text-align: center; padding: 0 12px;
-    font-size: .74rem; color: #9a9a9a; line-height: 1.5;
+    font-size: .72rem; color: #9a9a9a; line-height: 1.5;
   }
-  footer .autor { color: var(--cyan); font-weight: 600; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>EXPO — EXPRESIONES FACIALES</h1>
+  <p class="autor">Creado por <b>Dario Jose Mendoza Chipantasi</b></p>
   <p>Estimación visual, no un estado emocional real</p>
 </header>
 
@@ -118,6 +123,9 @@
   <canvas id="overlay"></canvas>
   <div id="topbar">
     <div>Expresión: <span id="domLabel">—</span></div>
+    <div style="font-size:.74rem; opacity:.9">
+      Edad aprox: <span id="age">—</span> · <span id="gender">—</span>
+    </div>
     <div style="font-size:.72rem; opacity:.85">
       Distancia aprox: <span id="dist">—</span> · <span id="fps">FPS 0</span>
     </div>
@@ -134,7 +142,7 @@
 <div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
 
 <footer>
-  Proyecto creado por <span class="autor">Dario Jose Mendoza Chipantasi</span>
+  Proyecto de tesis — Dario Jose Mendoza Chipantasi
 </footer>
 
 <!-- face-api.js (fork mantenido por @vladmandic) -->
@@ -161,6 +169,8 @@ const stage   = document.getElementById("stage");
 const statusEl= document.getElementById("status");
 const domLabel= document.getElementById("domLabel");
 const distEl  = document.getElementById("dist");
+const ageEl   = document.getElementById("age");
+const genderEl= document.getElementById("gender");
 const fpsEl   = document.getElementById("fps");
 const startBtn= document.getElementById("startBtn");
 const switchBtn=document.getElementById("switchBtn");
@@ -170,6 +180,17 @@ let facing = "user";       // frontal por defecto
 let running = false;
 let modelsReady = false;
 let lastT = performance.now();
+let ageSmooth = null;      // edad suavizada para que no salte tanto
+
+// Rango de edad como en el script de escritorio
+function grupoEdad(edad) {
+  if (edad < 13) return "Niño/a";
+  if (edad < 18) return "Adolescente";
+  if (edad < 30) return "Joven adulto";
+  if (edad < 45) return "Adulto joven";
+  if (edad < 60) return "Adulto";
+  return "Adulto mayor";
+}
 
 // Construir barras
 const bars = {};
@@ -192,6 +213,7 @@ async function loadModels() {
   statusEl.textContent = "Cargando modelos de IA...";
   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
   await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+  await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
   modelsReady = true;
   statusEl.textContent = "Modelos listos.";
 }
@@ -251,7 +273,8 @@ async function loop() {
 
     const res = await faceapi
       .detectSingleFace(video, detectorOpts)
-      .withFaceExpressions();
+      .withFaceExpressions()
+      .withAgeAndGender();
 
     octx.clearRect(0, 0, overlay.width, overlay.height);
 
@@ -282,6 +305,17 @@ async function loop() {
       octx.lineWidth = Math.max(2, vw * 0.006);
       octx.strokeRect(box.x, box.y, box.width, box.height);
 
+      // Edad (suavizada) y grupo de edad
+      const edadRaw = res.age;
+      ageSmooth = (ageSmooth === null) ? edadRaw : ageSmooth + (edadRaw - ageSmooth) * 0.15;
+      const edad = Math.round(ageSmooth);
+      ageEl.textContent = edad + " años · " + grupoEdad(edad);
+
+      // Género con % de confianza
+      const genEs = (res.gender === "male") ? "Hombre" : "Mujer";
+      const genPct = Math.round(res.genderProbability * 100);
+      genderEl.textContent = genEs + " (" + genPct + "%)";
+
       // Distancia aproximada por ancho del rostro (~15 cm de ancho real)
       const REAL_FACE_W = 0.15;    // metros
       const FOCAL = vw * 1.0;      // aprox para lente típico de celular
@@ -291,6 +325,9 @@ async function loop() {
       domLabel.textContent = "no detectado";
       domLabel.style.color = "#ffd600";
       distEl.textContent = "—";
+      ageEl.textContent = "—";
+      genderEl.textContent = "—";
+      ageSmooth = null;
       for (const e of EMO) {
         bars[e.key].fill.style.width = "0%";
         bars[e.key].val.textContent = "0.0%";
