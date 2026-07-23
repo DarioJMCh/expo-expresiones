@@ -1,0 +1,157 @@
+===========================================================
+  APP WEB - EXPRESIONES FACIALES
+  Guia paso a paso para instalar, correr y publicar
+===========================================================
+
+QUE ES:
+  Version web de tu script "3. expresiones faciales.py".
+  Usa la camara del celular y detecta las mismas 7 emociones:
+  Feliz, Neutral, Triste, Enojado, Sorprendido, Miedo, Disgusto.
+  Funciona en Android y iPhone. El asistente solo abre un enlace,
+  NO instala nada.
+
+CARPETA DEL PROYECTO:
+  /home/dariou2/PycharmProjects/visionexpo/appweb_expresiones/
+  Archivos:
+    - index.html                        (la app completa)
+    - INSTRUCCIONES_PASO_A_PASO.txt     (este archivo)
+    - LEEME.md                          (resumen rapido)
+
+DATO IMPORTANTE (leelo):
+  La camara del navegador SOLO funciona en dos casos:
+    1) En "localhost" (tu propia PC).
+    2) En una pagina con HTTPS (un sitio publicado).
+  Por eso, para que otros la usen desde su celular, HAY que publicarla.
+
+
+===========================================================
+  PARTE 1 - PROBARLA EN TU PC (para verificar que sirve)
+===========================================================
+
+PASO 1. Abre una terminal.
+
+PASO 2. Copia y pega este comando (con las comillas):
+
+    cd "/home/dariou2/PycharmProjects/visionexpo/appweb_expresiones"
+
+PASO 3. Enciende el servidor local con:
+
+    python3 -m http.server 8000
+
+   Veras un texto como:
+     "Serving HTTP on 0.0.0.0 port 8000 ..."
+   Deja esa terminal ABIERTA (mientras este abierta, el servidor vive).
+
+PASO 4. Abre tu navegador (Chrome/Firefox) y entra a:
+
+    http://localhost:8000
+
+PASO 5. Toca el boton "Iniciar camara" y ACEPTA el permiso de camara.
+   Deberias verte y ver las barras de emociones moviendose.
+
+PASO 6. Para APAGAR el servidor: vuelve a la terminal y presiona:
+
+    Ctrl + C
+
+
+===========================================================
+  PARTE 2 - PUBLICARLA PARA EL AUDITORIO (elegir UNA opcion)
+===========================================================
+
+------ OPCION A: NETLIFY DROP (la mas facil, ~1 minuto) ------
+
+PASO 1. Entra desde tu PC a:  https://app.netlify.com/drop
+PASO 2. Abre el explorador de archivos y ubica la carpeta:
+          appweb_expresiones
+PASO 3. Arrastra ESA CARPETA COMPLETA y sueltala en la pagina de Netlify.
+PASO 4. Espera unos segundos. Te dara una direccion tipo:
+          https://algo-al-azar.netlify.app
+        ESE es tu enlace con HTTPS. Guardalo.
+PASO 5. Abre ese enlace en tu propio celular para probarlo antes del evento.
+
+(Opcional: crear cuenta gratis en Netlify para que el enlace no expire.)
+
+
+------ OPCION B: GITHUB PAGES (enlace permanente y gratis) ------
+
+PASO 1. En la terminal:
+
+    cd "/home/dariou2/PycharmProjects/visionexpo/appweb_expresiones"
+    git init
+    git add index.html
+    git commit -m "App web expresiones faciales"
+    git branch -M main
+
+PASO 2. Entra a https://github.com y crea un repositorio NUEVO y VACIO,
+        por ejemplo con el nombre:  expo-expresiones
+        (no marques agregar README).
+
+PASO 3. Conecta y sube (cambia TU_USUARIO por tu usuario de GitHub):
+
+    git remote add origin https://github.com/TU_USUARIO/expo-expresiones.git
+    git push -u origin main
+
+PASO 4. En GitHub, entra al repositorio:
+          Settings  ->  Pages
+          En "Branch" elige:  main   /   (root)   ->  Save
+
+PASO 5. Espera 1-2 minutos. Tu enlace sera:
+          https://TU_USUARIO.github.io/expo-expresiones/
+
+
+===========================================================
+  PARTE 3 - EL DIA DEL AUDITORIO
+===========================================================
+
+PASO 1. Toma tu enlace (el de Netlify o el de GitHub Pages).
+
+PASO 2. Genera un codigo QR de ese enlace. Por ejemplo en:
+          https://www.qr-code-generator.com
+        Pega tu enlace, descarga el QR.
+
+PASO 3. Proyecta el QR en la pantalla del auditorio.
+
+PASO 4. Cada asistente:
+          - Escanea el QR con la camara de su celular.
+          - Se abre la app en su navegador.
+          - Toca "Iniciar camara" y acepta el permiso.
+          - Ve sus emociones en tiempo real.
+
+PASO 5. Boton "Cambiar camara" alterna entre frontal y trasera.
+
+
+===========================================================
+  PARTE 4 - SI ALGO FALLA (solucion rapida)
+===========================================================
+
+- "Error de camara" / no enciende:
+    * Revisa que aceptaste el permiso de camara.
+    * Revisa que la URL empiece con https:// (o sea localhost en tu PC).
+    * En iPhone usa Safari; en Android usa Chrome.
+
+- La camara se ve pero no detecta rostro:
+    * Ponte de frente y con buena luz en la cara.
+    * Acercate un poco a la camara.
+
+- Carga lenta la primera vez:
+    * Es normal: descarga ~2 MB de modelos de IA. Despues queda en cache.
+
+- Cambiar el titulo o los colores:
+    * Edita el archivo index.html con cualquier editor de texto.
+
+
+===========================================================
+  PARTE 5 - DIFERENCIAS CON TU SCRIPT DE ESCRITORIO (honesto)
+===========================================================
+
+- La DISTANCIA en metros es una ESTIMACION aproximada por el tamano
+  del rostro. El celular no tiene el sensor de profundidad de la
+  RealSense D435, asi que no es un dato exacto.
+
+- El modelo de emociones (face-api.js) es mas ligero que DeepFace,
+  para poder correr en tiempo real dentro del navegador del celular.
+  Las 7 categorias de emocion son las mismas.
+
+===========================================================
+  FIN
+===========================================================

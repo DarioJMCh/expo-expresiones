@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0c0c0c">
+<title>EXPO - Expresiones Faciales</title>
+<style>
+  :root {
+    --bg: #0c0c0c;
+    --panel: #151515;
+    --text: #f2f2f2;
+    --cyan: #00e5ff;
+    --yellow: #ffd600;
+    --green: #00e676;
+    --red: #ff3d3d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+  }
+  header {
+    text-align: center; padding: 10px 12px 4px;
+  }
+  header h1 { margin: 0; font-size: 1.05rem; letter-spacing: .5px; color: var(--cyan); }
+  header p { margin: 3px 0 0; font-size: .72rem; color: var(--yellow); }
+
+  #stage {
+    position: relative;
+    width: 100%; max-width: 640px;
+    margin: 8px auto 0;
+    background: #000;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border-radius: 10px;
+  }
+  #video, #overlay {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+  #video { object-fit: cover; }
+  /* Espejo para cámara frontal */
+  .mirror #video, .mirror #overlay { transform: scaleX(-1); }
+
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 8px 10px;
+    background: linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,0));
+    font-size: .8rem; pointer-events: none;
+  }
+  #domLabel { font-weight: 700; font-size: 1rem; }
+
+  #panel {
+    width: 100%; max-width: 640px;
+    margin: 10px auto 0;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 12px 14px 4px;
+  }
+  .bar-row { margin-bottom: 10px; }
+  .bar-head {
+    display: flex; justify-content: space-between;
+    font-size: .8rem; margin-bottom: 3px;
+  }
+  .bar-track {
+    height: 14px; background: #2a2a2a; border-radius: 7px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; width: 0%;
+    border-radius: 7px;
+    transition: width .18s ease-out;
+  }
+  .dom .bar-head { font-weight: 700; }
+
+  #controls {
+    max-width: 640px; margin: 10px auto 24px;
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    padding: 0 12px;
+  }
+  button {
+    background: #1f1f1f; color: var(--text);
+    border: 1px solid #333; border-radius: 8px;
+    padding: 11px 16px; font-size: .9rem;
+    cursor: pointer;
+  }
+  button:active { background: #2c2c2c; }
+  #startBtn { background: var(--cyan); color: #002; border: none; font-weight: 700; }
+
+  #status {
+    max-width: 640px; margin: 6px auto; text-align: center;
+    font-size: .8rem; color: var(--yellow); min-height: 1em;
+    padding: 0 12px;
+  }
+  #fps { color: var(--green); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>EXPO — EXPRESIONES FACIALES</h1>
+  <p>Estimación visual, no un estado emocional real</p>
+</header>
+
+<div id="stage" class="mirror">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="overlay"></canvas>
+  <div id="topbar">
+    <div>Expresión: <span id="domLabel">—</span></div>
+    <div style="font-size:.72rem; opacity:.85">
+      Distancia aprox: <span id="dist">—</span> · <span id="fps">FPS 0</span>
+    </div>
+  </div>
+</div>
+
+<div id="panel"></div>
+
+<div id="controls">
+  <button id="startBtn">▶ Iniciar cámara</button>
+  <button id="switchBtn" class="hidden">🔄 Cambiar cámara</button>
+</div>
+
+<div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
+
+<!-- face-api.js (fork mantenido por @vladmandic) -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script>
+const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+
+// Mismas 7 emociones y traducción que el script de la RealSense
+const EMO = [
+  { key: "happy",     es: "Feliz / Alegre", color: "#00e676" },
+  { key: "neutral",   es: "Neutral",        color: "#ffffff" },
+  { key: "sad",       es: "Triste",         color: "#4aa3ff" },
+  { key: "angry",     es: "Enojado",        color: "#ff3d3d" },
+  { key: "surprised", es: "Sorprendido",    color: "#ffd600" },
+  { key: "fearful",   es: "Miedo",          color: "#ff5cf0" },
+  { key: "disgusted", es: "Disgusto",       color: "#ff8a3d" },
+];
+
+const video   = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const octx    = overlay.getContext("2d");
+const panel   = document.getElementById("panel");
+const stage   = document.getElementById("stage");
+const statusEl= document.getElementById("status");
+const domLabel= document.getElementById("domLabel");
+const distEl  = document.getElementById("dist");
+const fpsEl   = document.getElementById("fps");
+const startBtn= document.getElementById("startBtn");
+const switchBtn=document.getElementById("switchBtn");
+
+let stream = null;
+let facing = "user";       // frontal por defecto
+let running = false;
+let modelsReady = false;
+let lastT = performance.now();
+
+// Construir barras
+const bars = {};
+for (const e of EMO) {
+  const row = document.createElement("div");
+  row.className = "bar-row";
+  row.id = "row_" + e.key;
+  row.innerHTML =
+    '<div class="bar-head"><span>'+e.es+'</span><span class="val">0.0%</span></div>' +
+    '<div class="bar-track"><div class="bar-fill" style="background:'+e.color+'"></div></div>';
+  panel.appendChild(row);
+  bars[e.key] = {
+    row,
+    fill: row.querySelector(".bar-fill"),
+    val:  row.querySelector(".val"),
+  };
+}
+
+async function loadModels() {
+  statusEl.textContent = "Cargando modelos de IA...";
+  await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+  await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+  modelsReady = true;
+  statusEl.textContent = "Modelos listos.";
+}
+
+async function startCamera() {
+  try {
+    if (!modelsReady) await loadModels();
+
+    if (stream) stream.getTracks().forEach(t => t.stop());
+
+    statusEl.textContent = "Solicitando cámara...";
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+
+    stage.classList.toggle("mirror", facing === "user");
+
+    switchBtn.classList.remove("hidden");
+    startBtn.textContent = "⏸ Detener";
+    statusEl.textContent = "";
+    running = true;
+    loop();
+  } catch (err) {
+    statusEl.textContent = "Error de cámara: " + err.message +
+      " (¿permitiste el acceso? ¿estás en HTTPS?)";
+  }
+}
+
+function stopCamera() {
+  running = false;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  startBtn.textContent = "▶ Iniciar cámara";
+  statusEl.textContent = "Cámara detenida.";
+}
+
+startBtn.addEventListener("click", () => {
+  if (running) stopCamera(); else startCamera();
+});
+
+switchBtn.addEventListener("click", async () => {
+  facing = (facing === "user") ? "environment" : "user";
+  if (running) await startCamera();
+});
+
+const detectorOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
+
+async function loop() {
+  if (!running) return;
+
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (vw && vh) {
+    if (overlay.width !== vw)  overlay.width  = vw;
+    if (overlay.height !== vh) overlay.height = vh;
+
+    const res = await faceapi
+      .detectSingleFace(video, detectorOpts)
+      .withFaceExpressions();
+
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+
+    if (res) {
+      const exp = res.expressions;
+      const box = res.detection.box;
+
+      // Emoción dominante
+      let domKey = "neutral", domVal = -1;
+      for (const e of EMO) {
+        const v = exp[e.key] ?? 0;
+        if (v > domVal) { domVal = v; domKey = e.key; }
+      }
+      const domEmo = EMO.find(e => e.key === domKey);
+      domLabel.textContent = domEmo.es;
+      domLabel.style.color = domEmo.color;
+
+      // Barras
+      for (const e of EMO) {
+        const pct = (exp[e.key] ?? 0) * 100;
+        bars[e.key].fill.style.width = pct.toFixed(1) + "%";
+        bars[e.key].val.textContent = pct.toFixed(1) + "%";
+        bars[e.key].row.classList.toggle("dom", e.key === domKey);
+      }
+
+      // Recuadro sobre el rostro
+      octx.strokeStyle = domEmo.color;
+      octx.lineWidth = Math.max(2, vw * 0.006);
+      octx.strokeRect(box.x, box.y, box.width, box.height);
+
+      // Distancia aproximada por ancho del rostro (~15 cm de ancho real)
+      const REAL_FACE_W = 0.15;    // metros
+      const FOCAL = vw * 1.0;      // aprox para lente típico de celular
+      const distM = (REAL_FACE_W * FOCAL) / box.width;
+      distEl.textContent = distM.toFixed(2) + " m";
+    } else {
+      domLabel.textContent = "no detectado";
+      domLabel.style.color = "#ffd600";
+      distEl.textContent = "—";
+      for (const e of EMO) {
+        bars[e.key].fill.style.width = "0%";
+        bars[e.key].val.textContent = "0.0%";
+        bars[e.key].row.classList.remove("dom");
+      }
+    }
+  }
+
+  // FPS
+  const now = performance.now();
+  const dt = now - lastT; lastT = now;
+  if (dt > 0) fpsEl.textContent = "FPS " + (1000 / dt).toFixed(0);
+
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
