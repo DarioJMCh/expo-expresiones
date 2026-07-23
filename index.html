@@ -258,8 +258,33 @@ function setBadge(el, text, on) {
   el.className = "badge " + (on ? "on" : "off");
 }
 
+// Inicializa el motor de TensorFlow.js ANTES de usar los modelos.
+// Sin esto, en algunos celulares (ej. Nokia 3) falla con
+// "backend 'wasm' has not yet been initialized".
+async function initBackend() {
+  const tf = faceapi.tf;
+  // Indicar dónde están los binarios .wasm por si toca usar ese backend
+  try {
+    if (tf.wasm && tf.wasm.setWasmPaths) {
+      tf.wasm.setWasmPaths("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/");
+    }
+  } catch (e) {}
+
+  for (const b of ["webgl", "wasm", "cpu"]) {
+    try {
+      await tf.setBackend(b);
+      await tf.ready();
+      if (tf.getBackend() === b) return b;
+    } catch (e) { /* probar el siguiente */ }
+  }
+  await tf.ready();
+  return tf.getBackend();
+}
+
 async function loadModels() {
-  statusEl.textContent = "Cargando modelos de IA...";
+  statusEl.textContent = "Iniciando motor de IA...";
+  const backend = await initBackend();
+  statusEl.textContent = "Cargando modelos de IA... (" + backend + ")";
   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
   await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
   await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
