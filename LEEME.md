@@ -56,3 +56,23 @@ En 1-2 min tendrás: `https://TU_USUARIO.github.io/expo-expresiones/`
 - Primera carga descarga ~2 MB de modelos de IA (se cachean después).
 - Recomienda a los asistentes tener buena luz de frente al rostro.
 - Si alguien ve "Error de cámara": revisar que aceptó el permiso y que la URL es HTTPS.
+
+---
+
+# Más demos de visión artificial (misma carpeta)
+
+Menú con todas las demos: `https://TU_USUARIO.github.io/expo-expresiones/menu/`
+(usa **ese** enlace para el código QR de la charla).
+
+| Carpeta | Demo | Concepto que explica |
+|---|---|---|
+| `pixeles/` | Así ve una máquina | La imagen son números: píxeles, RGB, grises, bordes, umbral |
+| `/` (raíz) | Expresiones faciales | Clasificación |
+| `objetos/` | Detector de objetos + búsqueda del tesoro | Detección (qué hay y dónde) |
+| `manos/` | Piedra, papel o tijera contra la IA | Puntos clave (21 puntos de la mano) |
+| `entrena/` | Entrena tu propia IA | Aprendizaje con ejemplos, sesgo en los datos |
+
+- Las demos 3, 4 y 5 usan **MediaPipe** (Google) y descargan su modelo la primera vez
+  (4–8 MB). Pide al público abrir el enlace al inicio de la charla.
+- `comun/` tiene el estilo y el código de cámara compartidos: súbelo junto con las carpetas.
+- Todo se procesa en el celular; ninguna imagen sale del dispositivo.

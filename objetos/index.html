@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0c0c0c">
+<meta name="author" content="Dario Jose Mendoza Chipantasi">
+<title>EXPO - Detector de objetos</title>
+<link rel="stylesheet" href="../comun/estilo.css">
+<style>
+  .param-head { display: flex; justify-content: space-between; font-size: .84rem; color: var(--muted); }
+  .param-head b { color: #fff; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    font-size: .8rem; padding: 4px 10px; border-radius: 14px;
+    background: rgba(0,230,118,.15); color: var(--green); font-weight: 600;
+    animation: pop .35s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .meta { display: flex; justify-content: space-between; align-items: center; }
+  .meta .big { font-size: 1.4rem; font-weight: 800; color: var(--yellow); }
+  .progress { height: 10px; background: #24272f; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .progress div { height: 100%; width: 0%; background: var(--green); transition: width .3s; }
+  #logro { margin-top: 8px; font-weight: 700; color: var(--green); text-align: center; }
+  #vacio { font-size: .8rem; color: var(--muted); text-align: center; padding: 6px 0; }
+  details summary { cursor: pointer; font-size: .84rem; color: var(--muted); }
+  #catalogo { font-size: .8rem; color: #cfd3da; line-height: 1.6; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="volver" href="../menu/">← Menú</a>
+  <h1>EXPO — DETECTOR DE OBJETOS</h1>
+  <p class="autor">Creado por <b>Dario Jose Mendoza Chipantasi</b></p>
+  <p class="nota">Así “mira” un auto autónomo o una cámara inteligente</p>
+</header>
+
+<div id="stage">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="overlay"></canvas>
+  <div id="topbar">
+    <div class="exp">Objetos: <span id="numObj" style="color:var(--cyan)">—</span></div>
+    <div class="fps"><span id="fps">FPS 0</span> · <span id="ms">— ms</span></div>
+  </div>
+</div>
+
+<main>
+  <div class="card">
+    <h3>Detectados ahora</h3>
+    <div id="vacio">Apunta la cámara a objetos: personas, celulares, sillas, botellas, tazas...</div>
+    <div id="lista"></div>
+  </div>
+
+  <div class="card">
+    <h3>🏆 Búsqueda del tesoro</h3>
+    <div class="meta">
+      <span style="font-size:.84rem;color:var(--muted)">Encuentra <b style="color:#fff">5 objetos distintos</b> en la sala</span>
+      <span class="big"><span id="cuenta">0</span>/5</span>
+    </div>
+    <div class="progress"><div id="barra"></div></div>
+    <div class="chips" id="chips"></div>
+    <div id="logro" class="hidden">🎉 ¡Lo lograste! ¿Puedes encontrar más?</div>
+    <div style="text-align:center;margin-top:8px"><button id="resetBtn">↺ Reiniciar búsqueda</button></div>
+  </div>
+
+  <div class="card">
+    <h3>Confianza mínima</h3>
+    <div class="param-head"><span>Mostrar solo si está seguro al menos</span><b id="umbralVal">45%</b></div>
+    <input type="range" id="umbral" min="15" max="90" value="45">
+    <p style="font-size:.78rem">Si la bajas, la IA “ve” más cosas… pero también se equivoca más. Si la subes, solo muestra lo que tiene claro.</p>
+  </div>
+
+  <div class="card">
+    <h3>¿Qué está pasando?</h3>
+    <p><b>Clasificar</b> es decir <i>qué</i> hay en una imagen. <b>Detectar</b> es decir qué hay <b>y dónde</b>: la IA dibuja una caja alrededor de cada objeto y da un porcentaje de confianza.</p>
+    <p>Este modelo (EfficientDet-Lite) fue entrenado con más de 100.000 fotos etiquetadas a mano y conoce <b>80 tipos de objetos</b>. Lo que no aprendió, no lo puede ver… o lo confunde con otra cosa.</p>
+    <details>
+      <summary>Ver los 80 objetos que conoce</summary>
+      <div id="catalogo"></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h3>¿Dónde lo usas a diario?</h3>
+    <ul>
+      <li>Autos con frenado automático y conducción autónoma (peatones, autos, semáforos).</li>
+      <li>Cámaras de seguridad que avisan cuando aparece una persona.</li>
+      <li>Tiendas sin cajero y conteo de vehículos en las calles.</li>
+      <li>Google Lens: apuntas a algo y te dice qué es.</li>
+    </ul>
+  </div>
+
+  <div id="controls">
+    <button id="startBtn">▶ Iniciar cámara</button>
+    <button id="switchBtn" class="hidden">🔄 Cambiar cámara</button>
+  </div>
+
+  <div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
+</main>
+
+<footer>Contacto: <a href="mailto:mendozachd@gmail.com">mendozachd@gmail.com</a></footer>
+
+<script type="module">
+import { Camara, cargarVision, crearTarea, medidorFPS, marcaTiempo,
+         mensajeErrorCamara, MODELOS } from "../comun/camara.js";
+
+// Las 80 clases del conjunto COCO, en español
+const ES = {
+  "person": "👤 Persona", "bicycle": "🚲 Bicicleta", "car": "🚗 Auto", "motorcycle": "🏍️ Moto",
+  "airplane": "✈️ Avión", "bus": "🚌 Bus", "train": "🚆 Tren", "truck": "🚚 Camión", "boat": "⛵ Bote",
+  "traffic light": "🚦 Semáforo", "fire hydrant": "🧯 Hidrante", "stop sign": "🛑 Señal de PARE",
+  "parking meter": "🅿️ Parquímetro", "bench": "🪑 Banca", "bird": "🐦 Pájaro", "cat": "🐱 Gato",
+  "dog": "🐶 Perro", "horse": "🐴 Caballo", "sheep": "🐑 Oveja", "cow": "🐄 Vaca", "elephant": "🐘 Elefante",
+  "bear": "🐻 Oso", "zebra": "🦓 Cebra", "giraffe": "🦒 Jirafa", "backpack": "🎒 Mochila",
+  "umbrella": "☂️ Paraguas", "handbag": "👜 Bolso", "tie": "👔 Corbata", "suitcase": "🧳 Maleta",
+  "frisbee": "🥏 Frisbee", "skis": "🎿 Esquís", "snowboard": "🏂 Snowboard", "sports ball": "⚽ Pelota",
+  "kite": "🪁 Cometa", "baseball bat": "🏏 Bate", "baseball glove": "🧤 Guante de béisbol",
+  "skateboard": "🛹 Patineta", "surfboard": "🏄 Tabla de surf", "tennis racket": "🎾 Raqueta",
+  "bottle": "🍾 Botella", "wine glass": "🍷 Copa", "cup": "☕ Taza / Vaso", "fork": "🍴 Tenedor",
+  "knife": "🔪 Cuchillo", "spoon": "🥄 Cuchara", "bowl": "🥣 Tazón", "banana": "🍌 Banana",
+  "apple": "🍎 Manzana", "sandwich": "🥪 Sándwich", "orange": "🍊 Naranja", "broccoli": "🥦 Brócoli",
+  "carrot": "🥕 Zanahoria", "hot dog": "🌭 Hot dog", "pizza": "🍕 Pizza", "donut": "🍩 Dona",
+  "cake": "🎂 Pastel", "chair": "🪑 Silla", "couch": "🛋️ Sofá", "potted plant": "🪴 Planta",
+  "bed": "🛏️ Cama", "dining table": "🍽️ Mesa", "toilet": "🚽 Inodoro", "tv": "📺 TV / Pantalla",
+  "laptop": "💻 Laptop", "mouse": "🖱️ Mouse", "remote": "📟 Control remoto", "keyboard": "⌨️ Teclado",
+  "cell phone": "📱 Celular", "microwave": "📦 Microondas", "oven": "♨️ Horno", "toaster": "🍞 Tostadora",
+  "sink": "🚰 Lavabo", "refrigerator": "🧊 Refrigeradora", "book": "📖 Libro", "clock": "🕒 Reloj",
+  "vase": "🏺 Florero", "scissors": "✂️ Tijeras", "teddy bear": "🧸 Peluche",
+  "hair drier": "💨 Secadora", "toothbrush": "🪥 Cepillo de dientes",
+};
+const nombre = c => ES[c] || c;
+const META = 5;
+
+const $ = id => document.getElementById(id);
+const video = $("video"), overlay = $("overlay"), octx = overlay.getContext("2d");
+const stage = $("stage"), statusEl = $("status");
+const startBtn = $("startBtn"), switchBtn = $("switchBtn");
+
+const cam = new Camara(video, stage, "environment");
+const tickFPS = medidorFPS($("fps"));
+
+let detector = null, running = false;
+let umbral = 0.45;
+const vistos = new Map();        // categoría -> cuadros en que se vio
+const encontrados = new Set();
+
+$("catalogo").textContent = Object.values(ES).join(" · ");
+
+$("umbral").addEventListener("input", e => {
+  umbral = e.target.value / 100;
+  $("umbralVal").textContent = e.target.value + "%";
+});
+
+$("resetBtn").addEventListener("click", () => {
+  vistos.clear(); encontrados.clear();
+  $("chips").innerHTML = "";
+  actualizarTesoro();
+});
+
+function color(cat) {
+  let h = 0;
+  for (const ch of cat) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return "hsl(" + h + ", 95%, 58%)";
+}
+
+function actualizarTesoro() {
+  const n = encontrados.size;
+  $("cuenta").textContent = n;
+  $("barra").style.width = Math.min(100, n / META * 100) + "%";
+  $("logro").classList.toggle("hidden", n < META);
+}
+
+async function cargarModelo() {
+  statusEl.textContent = "Cargando la IA (~7 MB, solo la primera vez)...";
+  const { mod, fileset } = await cargarVision();
+  const { tarea, delegate } = await crearTarea(mod.ObjectDetector, fileset, {
+    baseOptions: { modelAssetPath: MODELOS + "/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite" },
+    runningMode: "VIDEO",
+    scoreThreshold: 0.15,
+    maxResults: 12,
+  });
+  detector = tarea;
+  statusEl.textContent = "IA lista (" + delegate + ").";
+}
+
+// ---- Lista de detecciones (filas reutilizables) ----
+const lista = $("lista");
+function pintarLista(dets) {
+  $("vacio").classList.toggle("hidden", dets.length > 0);
+  lista.innerHTML = "";
+  for (const d of dets) {
+    const c = d.categories[0];
+    const pct = c.score * 100;
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML =
+      '<div class="bar-head"><span>' + nombre(c.categoryName) + '</span><span>' + pct.toFixed(0) + '%</span></div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%;background:' + color(c.categoryName) + '"></div></div>';
+    lista.appendChild(row);
+  }
+}
+
+function dibujar(dets) {
+  const W = overlay.width, H = overlay.height;
+  octx.clearRect(0, 0, W, H);
+  const lw = Math.max(2, W * 0.007);
+  const fs = Math.max(13, Math.round(W * 0.034));
+  octx.font = "700 " + fs + "px system-ui, sans-serif";
+  octx.textBaseline = "top";
+  for (const d of dets) {
+    const b = d.boundingBox, c = d.categories[0];
+    const x = cam.espejo ? W - b.originX - b.width : b.originX;
+    const col = color(c.categoryName);
+    octx.strokeStyle = col; octx.lineWidth = lw;
+    octx.strokeRect(x, b.originY, b.width, b.height);
+    const txt = nombre(c.categoryName) + " " + Math.round(c.score * 100) + "%";
+    const tw = octx.measureText(txt).width + 10;
+    const ty = b.originY > fs + 8 ? b.originY - fs - 8 : b.originY;
+    octx.fillStyle = col;
+    octx.fillRect(x - lw / 2, ty, tw, fs + 8);
+    octx.fillStyle = "#000";
+    octx.fillText(txt, x + 5 - lw / 2, ty + 4);
+  }
+}
+
+let ultimaLista = 0;
+function loop() {
+  if (!running) return;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (vw && vh && detector) {
+    if (overlay.width !== vw) overlay.width = vw;
+    if (overlay.height !== vh) overlay.height = vh;
+    const t0 = performance.now();
+    const res = detector.detectForVideo(video, marcaTiempo());
+    $("ms").textContent = Math.round(performance.now() - t0) + " ms";
+    const dets = res.detections
+      .filter(d => d.categories[0] && d.categories[0].score >= umbral)
+      .sort((a, b) => b.categories[0].score - a.categories[0].score);
+    dibujar(dets);
+    $("numObj").textContent = dets.length;
+
+    // La lista se refresca 4 veces por segundo para que se pueda leer
+    if (performance.now() - ultimaLista > 250) { pintarLista(dets); ultimaLista = performance.now(); }
+
+    // Búsqueda del tesoro: cuenta un objeto si se ve en varios cuadros
+    for (const d of dets) {
+      const cat = d.categories[0].categoryName;
+      const n = (vistos.get(cat) || 0) + 1;
+      vistos.set(cat, n);
+      if (n === 4 && !encontrados.has(cat)) {
+        encontrados.add(cat);
+        const chip = document.createElement("span");
+        chip.className = "chip"; chip.textContent = nombre(cat);
+        $("chips").appendChild(chip);
+        actualizarTesoro();
+        if (navigator.vibrate) navigator.vibrate(60);
+      }
+    }
+  }
+  tickFPS();
+  requestAnimationFrame(loop);
+}
+
+async function startCamera() {
+  try {
+    if (!detector) await cargarModelo();
+    statusEl.textContent = "Solicitando cámara...";
+    await cam.iniciar();
+    switchBtn.classList.remove("hidden");
+    startBtn.textContent = "⏸ Detener";
+    statusEl.textContent = "";
+    if (!running) { running = true; loop(); }
+  } catch (err) {
+    statusEl.textContent = detector ? mensajeErrorCamara(err)
+      : "No se pudo cargar la IA: " + (err.message || err) + " (revisa tu conexión a internet)";
+  }
+}
+
+function stopCamera() {
+  running = false;
+  cam.detener();
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  startBtn.textContent = "▶ Iniciar cámara";
+  statusEl.textContent = "Cámara detenida.";
+}
+
+startBtn.addEventListener("click", () => { running ? stopCamera() : startCamera(); });
+switchBtn.addEventListener("click", async () => {
+  try { await cam.cambiar(); } catch (err) { statusEl.textContent = mensajeErrorCamara(err); }
+});
+</script>
+</body>
+</html>

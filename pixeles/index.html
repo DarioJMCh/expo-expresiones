@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0c0c0c">
+<meta name="author" content="Dario Jose Mendoza Chipantasi">
+<title>EXPO - Así ve una máquina</title>
+<link rel="stylesheet" href="../comun/estilo.css">
+<style>
+  #video { opacity: 0; }
+  #overlay { cursor: crosshair; }
+  .modos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .modos button { padding: 9px 4px; font-size: .8rem; }
+  .param-head { display: flex; justify-content: space-between; font-size: .84rem; color: var(--muted); }
+  .param-head b { color: #fff; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--muted); margin-top: 8px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--cyan); }
+  .insp { display: flex; gap: 12px; align-items: flex-start; }
+  .swatch { width: 54px; height: 54px; border-radius: 8px; border: 1px solid #444; flex: none; background: #000; }
+  .insp-vals { flex: 1; }
+  .rgb { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .rgb span { font-size: .8rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+  .rgb .r { background: rgba(255,61,61,.2); color: #ff8080; }
+  .rgb .g { background: rgba(0,230,118,.18); color: var(--green); }
+  .rgb .b { background: rgba(74,163,255,.2); color: #7dbbff; }
+  .rgb .k { background: #2a2e36; color: #ddd; }
+  table.matriz { border-collapse: collapse; margin: 10px auto 2px; font-variant-numeric: tabular-nums; }
+  table.matriz td {
+    width: 38px; height: 26px; text-align: center; font-size: .72rem; font-weight: 600;
+    border: 1px solid rgba(0,0,0,.35);
+  }
+  table.matriz td.centro { outline: 2px solid var(--cyan); outline-offset: -2px; }
+  .hint { font-size: .74rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="volver" href="../menu/">← Menú</a>
+  <h1>EXPO — ASÍ VE UNA MÁQUINA</h1>
+  <p class="autor">Creado por <b>Dario Jose Mendoza Chipantasi</b></p>
+  <p class="nota">Para una computadora, una imagen es solo una tabla de números</p>
+</header>
+
+<div id="stage">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="overlay"></canvas>
+  <div id="topbar">
+    <div class="exp">Modo: <span id="modoLabel" style="color:var(--cyan)">—</span></div>
+    <div class="fps"><span id="fps">FPS 0</span></div>
+  </div>
+</div>
+
+<main>
+  <div class="card">
+    <h3>Modo de visión</h3>
+    <div class="modos" id="modos"></div>
+    <div id="paramBox" style="margin-top:10px">
+      <div class="param-head"><span id="paramName">—</span><b id="paramVal">—</b></div>
+      <input type="range" id="param">
+    </div>
+    <label class="check" id="numBox"><input type="checkbox" id="numeros" checked> Mostrar los números de cada píxel</label>
+  </div>
+
+  <div class="card">
+    <h3>¿Qué está haciendo la máquina?</h3>
+    <p id="explica">—</p>
+  </div>
+
+  <div class="card">
+    <h3>Inspector de píxel</h3>
+    <div id="inspVacio" class="hint">👆 Toca cualquier punto de la imagen para ver sus números</div>
+    <div id="inspBox" class="hidden">
+      <div class="insp">
+        <div class="swatch" id="swatch"></div>
+        <div class="insp-vals">
+          <div class="row"><span>Posición</span><b id="v_pos">—</b></div>
+          <div class="rgb">
+            <span class="r" id="v_r">R —</span>
+            <span class="g" id="v_g">G —</span>
+            <span class="b" id="v_b">B —</span>
+            <span class="k" id="v_k">Brillo —</span>
+          </div>
+        </div>
+      </div>
+      <table class="matriz" id="matriz"></table>
+      <div class="hint">Brillo (0 = negro, 255 = blanco) del píxel tocado y sus vecinos</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>¿Dónde lo usas a diario?</h3>
+    <ul>
+      <li>Filtros de Instagram y TikTok (operaciones sobre los números de cada píxel).</li>
+      <li>Escáner de documentos del celular y lectores de códigos QR (umbral y bordes).</li>
+      <li>Cámaras de seguridad que detectan movimiento (comparan números entre cuadros).</li>
+    </ul>
+  </div>
+
+  <div id="controls">
+    <button id="startBtn">▶ Iniciar cámara</button>
+    <button id="switchBtn" class="hidden">🔄 Cambiar cámara</button>
+    <button id="freezeBtn" class="hidden">❄ Congelar</button>
+  </div>
+
+  <div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
+</main>
+
+<footer>Contacto: <a href="mailto:mendozachd@gmail.com">mendozachd@gmail.com</a></footer>
+
+<script type="module">
+import { Camara, medidorFPS, mensajeErrorCamara } from "../comun/camara.js";
+
+const MODOS = {
+  normal: {
+    nombre: "Normal",
+    texto: "Esto es lo que capta el sensor de la cámara: cientos de miles de puntitos de luz. " +
+           "Nosotros vemos personas y objetos; la computadora, al principio, <b>solo ve números</b>.",
+  },
+  pixeles: {
+    nombre: "Píxeles",
+    param: { nombre: "Píxeles a lo ancho", min: 4, max: 80, valor: 12 },
+    texto: "La imagen es una <b>cuadrícula</b>. Cada cuadrito (píxel) guarda su brillo como un número " +
+           "de <b>0 (negro) a 255 (blanco)</b>. Mueve el control: con pocos píxeles, ¿todavía reconoces lo que ves? " +
+           "Una IA aprende a encontrar patrones dentro de estas tablas de números.",
+  },
+  grises: {
+    nombre: "Grises",
+    texto: "Muchos algoritmos trabajan en escala de grises: se combinan rojo, verde y azul en un solo número " +
+           "de brillo (<b>Gris = 0.30·R + 0.59·G + 0.11·B</b>). Tres veces menos datos = procesamiento más rápido.",
+  },
+  canales: {
+    nombre: "Canales RGB",
+    texto: "Cada píxel a color son en realidad <b>3 números: Rojo, Verde y Azul</b>. Apunta a algo de un color " +
+           "fuerte: verás que brilla en un canal y se apaga en los otros. Así sabe la máquina de qué color es algo.",
+  },
+  bordes: {
+    nombre: "Bordes",
+    param: { nombre: "Sensibilidad", min: 1, max: 10, valor: 4 },
+    texto: "Detección de bordes (<b>filtro de Sobel</b>): la computadora compara cada píxel con sus vecinos. " +
+           "Donde el número cambia bruscamente, hay un borde. Así empiezan a aparecer las <b>formas</b>, " +
+           "el primer paso para reconocer objetos.",
+  },
+  umbral: {
+    nombre: "Blanco/Negro",
+    param: { nombre: "Umbral", min: 0, max: 255, valor: 120 },
+    texto: "Umbralización: si el brillo supera el umbral → <b>blanco</b>; si no → <b>negro</b>. " +
+           "Es lo que hacen los escáneres de documentos y los lectores de códigos QR para separar " +
+           "la tinta del papel.",
+  },
+};
+
+const $ = id => document.getElementById(id);
+const video = $("video"), overlay = $("overlay"), octx = overlay.getContext("2d");
+const stage = $("stage"), statusEl = $("status");
+const startBtn = $("startBtn"), switchBtn = $("switchBtn"), freezeBtn = $("freezeBtn");
+const paramEl = $("param");
+
+const cam = new Camara(video, stage, "environment");
+const tickFPS = medidorFPS($("fps"));
+
+// Resolución de trabajo (pequeña para que sea rápido en cualquier celular)
+const W = 320;
+let H = 240;
+const ESCALA = 2;   // el canvas visible es 2x para que se lean los números
+const src = document.createElement("canvas");
+const sctx = src.getContext("2d", { willReadFrequently: true });
+const tiny = document.createElement("canvas");
+const tctx = tiny.getContext("2d", { willReadFrequently: true });
+const work = document.createElement("canvas");
+const wctx = work.getContext("2d");
+
+let modo = "pixeles";
+let raw = null;          // ImageData del cuadro actual
+let congelado = false;
+let running = false;
+let sel = null;          // punto tocado {x, y} en coordenadas de trabajo
+const paramValores = {};
+for (const k in MODOS) if (MODOS[k].param) paramValores[k] = MODOS[k].param.valor;
+
+// ---- Botones de modo ----
+const modosBox = $("modos");
+for (const k in MODOS) {
+  const b = document.createElement("button");
+  b.textContent = MODOS[k].nombre;
+  b.dataset.modo = k;
+  b.addEventListener("click", () => elegirModo(k));
+  modosBox.appendChild(b);
+}
+
+function elegirModo(k) {
+  modo = k;
+  for (const b of modosBox.children) b.classList.toggle("sel", b.dataset.modo === k);
+  $("modoLabel").textContent = MODOS[k].nombre;
+  $("explica").innerHTML = MODOS[k].texto;
+  const p = MODOS[k].param;
+  $("paramBox").classList.toggle("hidden", !p);
+  if (p) {
+    paramEl.min = p.min; paramEl.max = p.max; paramEl.value = paramValores[k];
+    $("paramName").textContent = p.nombre;
+    $("paramVal").textContent = paramValores[k];
+  }
+  $("numBox").classList.toggle("hidden", k !== "pixeles");
+  if (!running) renderPlaceholder();
+}
+
+paramEl.addEventListener("input", () => {
+  paramValores[modo] = +paramEl.value;
+  $("paramVal").textContent = paramEl.value;
+});
+
+// ---- Captura y procesamiento ----
+function capturar() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return false;
+  const h = Math.round(W * vh / vw);
+  if (src.width !== W || src.height !== h) {
+    H = h;
+    src.width = W; src.height = H;
+    work.width = W; work.height = H;
+    overlay.width = W * ESCALA; overlay.height = H * ESCALA;
+  }
+  sctx.save();
+  if (cam.espejo) { sctx.translate(W, 0); sctx.scale(-1, 1); }
+  sctx.drawImage(video, 0, 0, W, H);
+  sctx.restore();
+  raw = sctx.getImageData(0, 0, W, H);
+  return true;
+}
+
+function grises(img) {
+  const d = img.data, g = new Uint8ClampedArray(W * H);
+  for (let i = 0, j = 0; j < g.length; i += 4, j++) {
+    g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  }
+  return g;
+}
+
+function pintarTrabajo(out) {
+  wctx.putImageData(out, 0, 0);
+  octx.imageSmoothingEnabled = true;
+  octx.drawImage(work, 0, 0, overlay.width, overlay.height);
+}
+
+function render() {
+  if (!raw) return;
+  const out = new ImageData(W, H);
+  const o = out.data, d = raw.data;
+
+  if (modo === "normal") {
+    octx.imageSmoothingEnabled = true;
+    octx.drawImage(src, 0, 0, overlay.width, overlay.height);
+  }
+
+  else if (modo === "pixeles") {
+    const n = paramValores.pixeles;
+    const m = Math.max(1, Math.round(n * H / W));
+    const numeros = $("numeros").checked;
+    tiny.width = n; tiny.height = m;
+    tctx.imageSmoothingEnabled = true;
+    tctx.drawImage(src, 0, 0, n, m);
+    const cw = overlay.width / n, ch = overlay.height / m;
+    if (!numeros) {
+      octx.imageSmoothingEnabled = false;
+      octx.drawImage(tiny, 0, 0, overlay.width, overlay.height);
+    } else {
+      const td = tctx.getImageData(0, 0, n, m).data;
+      // Solo escribimos los números si cada cuadro se ve suficientemente grande en pantalla
+      const conTexto = cw * (overlay.clientWidth || overlay.width) / overlay.width >= 15;
+      octx.font = "600 " + Math.floor(Math.min(cw * 0.4, ch * 0.55)) + "px system-ui, sans-serif";
+      octx.textAlign = "center"; octx.textBaseline = "middle";
+      for (let y = 0; y < m; y++) {
+        for (let x = 0; x < n; x++) {
+          const i = (y * n + x) * 4;
+          const v = Math.round(0.299 * td[i] + 0.587 * td[i + 1] + 0.114 * td[i + 2]);
+          octx.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
+          octx.fillRect(Math.floor(x * cw), Math.floor(y * ch), Math.ceil(cw), Math.ceil(ch));
+          if (conTexto) {
+            octx.fillStyle = v > 128 ? "#000" : "#fff";
+            octx.fillText(v, x * cw + cw / 2, y * ch + ch / 2);
+          }
+        }
+      }
+      if (cw >= 10) {
+        octx.strokeStyle = "rgba(0,229,255,.25)"; octx.lineWidth = 1;
+        octx.beginPath();
+        for (let x = 1; x < n; x++) { octx.moveTo(x * cw, 0); octx.lineTo(x * cw, overlay.height); }
+        for (let y = 1; y < m; y++) { octx.moveTo(0, y * ch); octx.lineTo(overlay.width, y * ch); }
+        octx.stroke();
+      }
+    }
+  }
+
+  else if (modo === "grises") {
+    const g = grises(raw);
+    for (let j = 0, i = 0; j < g.length; j++, i += 4) {
+      o[i] = o[i + 1] = o[i + 2] = g[j]; o[i + 3] = 255;
+    }
+    pintarTrabajo(out);
+  }
+
+  else if (modo === "canales") {
+    // 4 cuadrantes: original, rojo, verde, azul (a media resolución)
+    const hw = W >> 1, hh = H >> 1;
+    for (let q = 0; q < 4; q++) {
+      const ox = (q % 2) * hw, oy = (q >> 1) * hh;
+      for (let y = 0; y < hh; y++) {
+        for (let x = 0; x < hw; x++) {
+          const si = ((y * 2) * W + x * 2) * 4;
+          const di = ((oy + y) * W + ox + x) * 4;
+          o[di]     = (q === 0 || q === 1) ? d[si] : 0;
+          o[di + 1] = (q === 0 || q === 2) ? d[si + 1] : 0;
+          o[di + 2] = (q === 0 || q === 3) ? d[si + 2] : 0;
+          o[di + 3] = 255;
+        }
+      }
+    }
+    pintarTrabajo(out);
+    const et = ["Original", "Rojo (R)", "Verde (G)", "Azul (B)"];
+    const col = ["#fff", "#ff8080", "#5dffa8", "#7dbbff"];
+    octx.font = "700 " + Math.round(overlay.width * 0.035) + "px system-ui, sans-serif";
+    octx.textAlign = "left"; octx.textBaseline = "bottom";
+    for (let q = 0; q < 4; q++) {
+      const x = (q % 2) * overlay.width / 2 + 8, y = ((q >> 1) + 1) * overlay.height / 2 - 6;
+      octx.fillStyle = "rgba(0,0,0,.6)";
+      const tw = octx.measureText(et[q]).width;
+      octx.fillRect(x - 4, y - overlay.width * 0.045, tw + 8, overlay.width * 0.045);
+      octx.fillStyle = col[q];
+      octx.fillText(et[q], x, y - 2);
+    }
+    octx.strokeStyle = "#000"; octx.lineWidth = 3;
+    octx.beginPath();
+    octx.moveTo(overlay.width / 2, 0); octx.lineTo(overlay.width / 2, overlay.height);
+    octx.moveTo(0, overlay.height / 2); octx.lineTo(overlay.width, overlay.height / 2);
+    octx.stroke();
+  }
+
+  else if (modo === "bordes") {
+    const g = grises(raw);
+    const k = paramValores.bordes * 0.3;
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const p = y * W + x;
+        const gx = -g[p - W - 1] - 2 * g[p - 1] - g[p + W - 1] + g[p - W + 1] + 2 * g[p + 1] + g[p + W + 1];
+        const gy = -g[p - W - 1] - 2 * g[p - W] - g[p - W + 1] + g[p + W - 1] + 2 * g[p + W] + g[p + W + 1];
+        const v = Math.min(255, (Math.abs(gx) + Math.abs(gy)) * k);
+        const i = p * 4;
+        o[i] = v * 0.35; o[i + 1] = v; o[i + 2] = v; o[i + 3] = 255;
+      }
+    }
+    for (let i = 3; i < o.length; i += 4) o[i] = 255;
+    pintarTrabajo(out);
+  }
+
+  else if (modo === "umbral") {
+    const g = grises(raw), t = paramValores.umbral;
+    for (let j = 0, i = 0; j < g.length; j++, i += 4) {
+      const v = g[j] > t ? 255 : 0;
+      o[i] = o[i + 1] = o[i + 2] = v; o[i + 3] = 255;
+    }
+    pintarTrabajo(out);
+  }
+
+  if (sel) dibujarMira();
+}
+
+function renderPlaceholder() {
+  overlay.width = 640; overlay.height = 480;
+  octx.fillStyle = "#000"; octx.fillRect(0, 0, 640, 480);
+}
+
+// ---- Inspector de píxel ----
+const matriz = $("matriz");
+const R = 3; // 7x7
+const celdas = [];
+for (let y = -R; y <= R; y++) {
+  const tr = document.createElement("tr");
+  for (let x = -R; x <= R; x++) {
+    const td = document.createElement("td");
+    if (x === 0 && y === 0) td.className = "centro";
+    tr.appendChild(td);
+    celdas.push({ td, dx: x, dy: y });
+  }
+  matriz.appendChild(tr);
+}
+
+overlay.addEventListener("pointerdown", ev => {
+  if (!raw) return;
+  const r = overlay.getBoundingClientRect();
+  let fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+  if (modo === "canales") { fx = (fx * 2) % 1; fy = (fy * 2) % 1; }
+  sel = { x: Math.min(W - 1, Math.floor(fx * W)), y: Math.min(H - 1, Math.floor(fy * H)) };
+  $("inspVacio").classList.add("hidden");
+  $("inspBox").classList.remove("hidden");
+  actualizarInspector();
+  if (congelado) render();
+});
+
+function actualizarInspector() {
+  if (!sel || !raw) return;
+  const d = raw.data;
+  const i = (sel.y * W + sel.x) * 4;
+  const r = d[i], g = d[i + 1], b = d[i + 2];
+  const k = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  $("swatch").style.background = "rgb(" + r + "," + g + "," + b + ")";
+  $("v_pos").textContent = "x " + sel.x + ", y " + sel.y;
+  $("v_r").textContent = "R " + r;
+  $("v_g").textContent = "G " + g;
+  $("v_b").textContent = "B " + b;
+  $("v_k").textContent = "Brillo " + k;
+  for (const c of celdas) {
+    const x = Math.min(W - 1, Math.max(0, sel.x + c.dx));
+    const y = Math.min(H - 1, Math.max(0, sel.y + c.dy));
+    const j = (y * W + x) * 4;
+    const v = Math.round(0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]);
+    c.td.textContent = v;
+    c.td.style.background = "rgb(" + v + "," + v + "," + v + ")";
+    c.td.style.color = v > 128 ? "#000" : "#fff";
+  }
+}
+
+function dibujarMira() {
+  let x = (sel.x + 0.5) * ESCALA, y = (sel.y + 0.5) * ESCALA;
+  const pos = modo === "canales"
+    ? [[x / 2, y / 2], [x / 2 + overlay.width / 2, y / 2],
+       [x / 2, y / 2 + overlay.height / 2], [x / 2 + overlay.width / 2, y / 2 + overlay.height / 2]]
+    : [[x, y]];
+  const rad = overlay.width * 0.025;
+  octx.lineWidth = 3;
+  for (const [px, py] of pos) {
+    octx.strokeStyle = "#000";
+    octx.beginPath(); octx.arc(px, py, rad, 0, Math.PI * 2); octx.stroke();
+    octx.strokeStyle = "#00e5ff"; octx.lineWidth = 2;
+    octx.beginPath(); octx.arc(px, py, rad, 0, Math.PI * 2);
+    octx.moveTo(px - rad * 1.8, py); octx.lineTo(px - rad * 0.6, py);
+    octx.moveTo(px + rad * 0.6, py); octx.lineTo(px + rad * 1.8, py);
+    octx.moveTo(px, py - rad * 1.8); octx.lineTo(px, py - rad * 0.6);
+    octx.moveTo(px, py + rad * 0.6); octx.lineTo(px, py + rad * 1.8);
+    octx.stroke();
+    octx.lineWidth = 3;
+  }
+}
+
+// ---- Bucle ----
+function loop() {
+  if (!running) return;
+  if (!congelado) capturar();
+  render();
+  actualizarInspector();
+  tickFPS();
+  requestAnimationFrame(loop);
+}
+
+async function startCamera() {
+  try {
+    statusEl.textContent = "Solicitando cámara...";
+    await cam.iniciar();
+    switchBtn.classList.remove("hidden");
+    freezeBtn.classList.remove("hidden");
+    startBtn.textContent = "⏸ Detener";
+    statusEl.textContent = "";
+    congelado = false; freezeBtn.textContent = "❄ Congelar";
+    if (!running) { running = true; loop(); }
+  } catch (err) {
+    statusEl.textContent = mensajeErrorCamara(err);
+  }
+}
+
+function stopCamera() {
+  running = false;
+  cam.detener();
+  startBtn.textContent = "▶ Iniciar cámara";
+  statusEl.textContent = "Cámara detenida.";
+}
+
+startBtn.addEventListener("click", () => { running ? stopCamera() : startCamera(); });
+switchBtn.addEventListener("click", async () => {
+  try { await cam.cambiar(); congelado = false; freezeBtn.textContent = "❄ Congelar"; }
+  catch (err) { statusEl.textContent = mensajeErrorCamara(err); }
+});
+freezeBtn.addEventListener("click", () => {
+  congelado = !congelado;
+  freezeBtn.textContent = congelado ? "▶ Reanudar" : "❄ Congelar";
+  freezeBtn.classList.toggle("sel", congelado);
+});
+
+elegirModo("pixeles");
+</script>
+</body>
+</html>

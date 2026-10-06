@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0c0c0c">
+<meta name="author" content="Dario Jose Mendoza Chipantasi">
+<title>EXPO - Visión Artificial</title>
+<link rel="stylesheet" href="../comun/estilo.css">
+<style>
+  header { padding-top: 22px; }
+  header h1 { font-size: 1.3rem; }
+  .sub { margin: 6px 0 0; font-size: .86rem; color: #cfd3da; }
+  .demo {
+    display: flex; gap: 14px; align-items: center; text-decoration: none; color: inherit;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; margin-top: 10px; transition: border-color .15s, transform .1s;
+  }
+  .demo:active { transform: scale(.98); border-color: var(--cyan); }
+  .demo .ico {
+    font-size: 2rem; width: 54px; height: 54px; flex: none; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; background: #22262e;
+  }
+  .demo .num { font-size: .68rem; color: var(--cyan); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+  .demo h2 { margin: 2px 0 3px; font-size: 1rem; }
+  .demo p { margin: 0; font-size: .8rem; color: var(--muted); line-height: 1.35; }
+  .demo .flecha { margin-left: auto; color: var(--muted); font-size: 1.2rem; }
+  .priv { font-size: .78rem; color: var(--muted); text-align: center; margin: 16px 8px 0; line-height: 1.45; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VISIÓN ARTIFICIAL EN UN MUNDO INTELIGENTE</h1>
+  <p class="autor">Creado por <b>Dario Jose Mendoza Chipantasi</b></p>
+  <p class="sub">Elige una demo, abre la cámara y juega 👇</p>
+</header>
+
+<main>
+  <a class="demo" href="../pixeles/">
+    <div class="ico">🔢</div>
+    <div><div class="num">Demo 1 · Píxeles</div><h2>Así ve una máquina</h2>
+      <p>La imagen convertida en números, colores y bordes.</p></div>
+    <span class="flecha">›</span>
+  </a>
+  <a class="demo" href="../">
+    <div class="ico">😀</div>
+    <div><div class="num">Demo 2 · Clasificación</div><h2>Expresiones faciales</h2>
+      <p>La IA estima tu emoción, edad y gestos del rostro.</p></div>
+    <span class="flecha">›</span>
+  </a>
+  <a class="demo" href="../objetos/">
+    <div class="ico">📦</div>
+    <div><div class="num">Demo 3 · Detección</div><h2>Detector de objetos</h2>
+      <p>Como un auto autónomo: qué hay y dónde está.</p></div>
+    <span class="flecha">›</span>
+  </a>
+  <a class="demo" href="../manos/">
+    <div class="ico">✊</div>
+    <div><div class="num">Demo 4 · Puntos clave</div><h2>Piedra, papel o tijera</h2>
+      <p>Juega contra la IA usando tu mano.</p></div>
+    <span class="flecha">›</span>
+  </a>
+  <a class="demo" href="../entrena/">
+    <div class="ico">🧠</div>
+    <div><div class="num">Demo 5 · Aprendizaje</div><h2>Entrena tu propia IA</h2>
+      <p>Enséñale con ejemplos en 30 segundos.</p></div>
+    <span class="flecha">›</span>
+  </a>
+
+  <p class="priv">🔒 Todo se procesa dentro de tu celular. Ninguna imagen se envía a internet.<br>
+  Usa buena luz y permite el acceso a la cámara.</p>
+</main>
+
+<footer>Contacto: <a href="mailto:mendozachd@gmail.com">mendozachd@gmail.com</a></footer>
+</body>
+</html>
