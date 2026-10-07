@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0c0c0c">
+<meta name="author" content="Dario Jose Mendoza Chipantasi">
+<title>EXPO - Busca mi objeto</title>
+<link rel="stylesheet" href="../comun/estilo.css">
+<script>
+  // OpenCV.js (incluye ORB, BFMatcher y findHomography). Se descarga en segundo plano.
+  window.__cvEstado = "cargando";
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js"
+  onload="window.__cvEstado='cargado'; dispatchEvent(new Event('opencv-cargado'))"
+  onerror="window.__cvEstado='error'; dispatchEvent(new Event('opencv-error'))"></script>
+<style>
+  .paso { display: flex; align-items: center; gap: 8px; }
+  .paso .num {
+    width: 24px; height: 24px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+    background: var(--cyan); color: #002; font-weight: 800; font-size: .8rem;
+  }
+  .campo { display: flex; gap: 8px; margin-top: 8px; }
+  .campo input {
+    flex: 1; min-width: 0; background: #20242c; border: 1px solid #333; border-radius: 8px;
+    color: #fff; font-size: .95rem; padding: 10px; font-family: inherit;
+  }
+  .campo input:focus { outline: none; border-color: var(--cyan); }
+  .objetos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+  .obj {
+    position: relative; border: 2px solid var(--border); border-radius: 10px; overflow: hidden;
+    background: #20242c; cursor: pointer; text-align: center; padding-bottom: 4px;
+  }
+  .obj.sel { border-color: var(--green); box-shadow: 0 0 0 2px rgba(0,230,118,.25); }
+  .obj canvas { width: 100%; display: block; aspect-ratio: 1 / 1; object-fit: cover; background: #000; }
+  .obj .nom { font-size: .78rem; font-weight: 700; padding: 3px 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .obj .pts { font-size: .66rem; color: var(--muted); }
+  .obj .x {
+    position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,.7); color: #fff; border: none; padding: 0; font-size: .75rem; line-height: 22px;
+  }
+  #buscarBtn { width: 100%; font-size: 1.05rem; padding: 14px; margin-top: 10px; }
+  #buscarBtn.activo { background: var(--red); color: #fff; }
+  .aviso { font-size: .78rem; color: var(--yellow); margin-top: 6px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--muted); margin-top: 8px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--cyan); }
+  .param-head { display: flex; justify-content: space-between; font-size: .84rem; color: var(--muted); margin-top: 8px; }
+  .param-head b { color: #fff; }
+  #encontrado {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px; text-align: center;
+    font-weight: 800; font-size: 1rem; pointer-events: none;
+    background: linear-gradient(0deg, rgba(0,0,0,.75), rgba(0,0,0,0));
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="volver" href="../menu/">← Menú</a>
+  <h1>EXPO — BUSCA MI OBJETO</h1>
+  <p class="autor">Creado por <b>Dario Jose Mendoza Chipantasi</b></p>
+  <p class="nota">Puntos característicos (como SIFT/SURF) con OpenCV</p>
+</header>
+
+<div id="stage">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="overlay"></canvas>
+  <div id="topbar">
+    <div class="exp" id="modoTxt">Paso 1: encuadra el objeto</div>
+    <div class="fps"><span id="fps">FPS 0</span> · <span id="ms">— ms</span></div>
+  </div>
+  <div id="encontrado"></div>
+</div>
+
+<main>
+  <div class="card">
+    <h3 class="paso"><span class="num">1</span> Tómale una foto al objeto</h3>
+    <p>Pon el objeto <b>dentro del recuadro</b>, escribe su nombre y toma la foto. Funciona mejor con cosas planas y con dibujos o letras: la portada de un libro, una caja, un billete, una etiqueta.</p>
+    <div class="campo">
+      <input type="text" id="nombre" maxlength="20" placeholder="Nombre (ej: Mi libro)">
+      <button id="fotoBtn" class="primary" disabled>📸 Foto</button>
+    </div>
+    <div id="avisoFoto" class="aviso hidden"></div>
+    <div class="objetos" id="objetos"></div>
+  </div>
+
+  <div class="card">
+    <h3 class="paso"><span class="num">2</span> ¿Qué objeto busco?</h3>
+    <p id="ayuda2">Primero toma la foto de al menos un objeto. Luego tócalo para elegirlo.</p>
+    <button id="buscarBtn" class="primary" disabled>🔍 Buscar</button>
+    <label class="check"><input type="checkbox" id="verPuntos" checked> Ver puntos característicos y coincidencias</label>
+    <div class="param-head"><span>Coincidencias mínimas para decir “lo encontré”</span><b id="minVal">12</b></div>
+    <input type="range" id="minCoinc" min="6" max="40" value="12">
+  </div>
+
+  <div class="card">
+    <h3>Lo que calcula la máquina</h3>
+    <div class="grid2">
+      <div class="row"><span>Puntos en la foto</span><b id="v_ref">—</b></div>
+      <div class="row"><span>Puntos en el video</span><b id="v_frame">—</b></div>
+      <div class="row"><span>Coincidencias</span><b id="v_good">—</b></div>
+      <div class="row"><span>Coinciden en forma</span><b id="v_inl">—</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>¿Qué está pasando?</h3>
+    <p>1. En la foto, la máquina busca <b>puntos característicos</b>: esquinas y detalles únicos, como las huellas digitales de la imagen. Cada punto se describe con <b>256 bits</b> (su “descriptor”).</p>
+    <p>2. En cada cuadro del video hace lo mismo y <b>compara las huellas</b>: si una es mucho más parecida que las demás, es una coincidencia.</p>
+    <p>3. Por último revisa que las coincidencias <b>respeten la misma forma</b> (homografía con RANSAC). Si suficientes puntos están de acuerdo, encierra el objeto, aunque esté <b>girado, inclinado o más lejos</b>.</p>
+    <p>Aquí se usa <b>ORB</b>, el método libre y rápido de OpenCV, de la misma familia que <b>SIFT y SURF</b>. A diferencia de las demos con redes neuronales, <b>no necesita entrenamiento</b>: una sola foto basta.</p>
+  </div>
+
+  <div class="card">
+    <h3>¿Dónde lo usas a diario?</h3>
+    <ul>
+      <li>Fotos panorámicas del celular (une las fotos por sus puntos en común).</li>
+      <li>Realidad aumentada: juegos y filtros que “pegan” objetos virtuales al mundo real.</li>
+      <li>Google Lens reconociendo portadas, cuadros de museo o productos.</li>
+      <li>Robots, drones y autos que se ubican comparando lo que ven (SLAM).</li>
+    </ul>
+  </div>
+
+  <div id="controls">
+    <button id="startBtn">▶ Iniciar cámara</button>
+    <button id="switchBtn" class="hidden">🔄 Cambiar cámara</button>
+  </div>
+
+  <div id="status">Toca "Iniciar cámara" y permite el acceso.</div>
+</main>
+
+<footer>Contacto: <a href="mailto:mendozachd@gmail.com">mendozachd@gmail.com</a></footer>
+
+<script type="module">
+import { Camara, medidorFPS, mensajeErrorCamara } from "../comun/camara.js";
+
+const PW = 400;                 // ancho de procesamiento (pequeño = rápido)
+const GUIA = 0.6;               // tamaño del recuadro guía (fracción del cuadro)
+const MAX_OBJETOS = 6;
+const COLORES = ["#00e676", "#ff5cf0", "#ffd600", "#4aa3ff", "#ff8a3d", "#00e5ff"];
+
+const $ = id => document.getElementById(id);
+const video = $("video"), overlay = $("overlay"), octx = overlay.getContext("2d");
+const stage = $("stage"), statusEl = $("status");
+const startBtn = $("startBtn"), switchBtn = $("switchBtn");
+const fotoBtn = $("fotoBtn"), buscarBtn = $("buscarBtn");
+
+const cam = new Camara(video, stage, "environment");
+const tickFPS = medidorFPS($("fps"));
+
+const proc = document.createElement("canvas");
+const pctx = proc.getContext("2d", { willReadFrequently: true });
+let PH = 300;
+
+let cv = null, orb = null, orbRef = null, bf = null;
+let running = false, buscando = false;
+let minCoinc = 12;
+const objetos = [];   // { nombre, color, des (cv.Mat), pts [{x,y}], w, h, mini (canvas) }
+let elegido = -1;
+let esquinasSuaves = null, perdidos = 0;
+
+$("minCoinc").addEventListener("input", e => { minCoinc = +e.target.value; $("minVal").textContent = e.target.value; });
+
+// ---- Carga de OpenCV ----
+// El script se descarga apenas se abre la página (ver <script> en el <head>),
+// así cuando el usuario toca "Iniciar cámara" ya suele estar listo.
+function esperarOpenCV() {
+  return new Promise((resolve, reject) => {
+    const listo = async () => {
+      try {
+        let c = window.cv;
+        if (c instanceof Promise) c = await c;
+        else if (!c.Mat) await new Promise(r => { c.onRuntimeInitialized = r; });
+        // Ojo: el objeto de OpenCV tiene un método "then"; si se pasa a resolve()
+        // el navegador entra en un ciclo infinito. Por eso se entrega dentro de un objeto.
+        resolve({ cv: c });
+      } catch (e) { reject(e); }
+    };
+    if (window.__cvEstado === "cargado") listo();
+    else if (window.__cvEstado === "error") reject(new Error("no se pudo descargar OpenCV"));
+    else {
+      window.addEventListener("opencv-cargado", listo, { once: true });
+      window.addEventListener("opencv-error", () => reject(new Error("no se pudo descargar OpenCV")), { once: true });
+    }
+  });
+}
+
+async function prepararOpenCV() {
+  statusEl.textContent = "Cargando OpenCV (~11 MB, solo la primera vez)...";
+  cv = (await esperarOpenCV()).cv;
+  orb = new cv.ORB(500);
+  orbRef = new cv.ORB(800);
+  bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
+  statusEl.textContent = "OpenCV listo.";
+}
+
+// ---- Captura del cuadro (ya en espejo si es la cámara frontal) ----
+function capturar() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const h = Math.round(PW * vh / vw);
+  if (proc.width !== PW || proc.height !== h) {
+    PH = h; proc.width = PW; proc.height = PH;
+    overlay.width = PW * 2; overlay.height = PH * 2;
+  }
+  pctx.save();
+  if (cam.espejo) { pctx.translate(PW, 0); pctx.scale(-1, 1); }
+  pctx.drawImage(video, 0, 0, PW, PH);
+  pctx.restore();
+  return pctx.getImageData(0, 0, PW, PH);
+}
+
+function aGris(img) {
+  const rgba = cv.matFromImageData(img);
+  const gris = new cv.Mat();
+  cv.cvtColor(rgba, gris, cv.COLOR_RGBA2GRAY);
+  rgba.delete();
+  return gris;
+}
+
+function recuadroGuia() {
+  const w = Math.round(PW * GUIA), h = Math.round(PH * GUIA);
+  return { x: Math.round((PW - w) / 2), y: Math.round((PH - h) / 2), w, h };
+}
+
+// ---- Paso 1: tomar foto ----
+function tomarFoto() {
+  if (!running || !cv) return;
+  if (objetos.length >= MAX_OBJETOS) { avisar("Máximo " + MAX_OBJETOS + " objetos. Borra uno con ✕."); return; }
+  const img = capturar();
+  if (!img) return;
+  const g = recuadroGuia();
+  const recorte = pctx.getImageData(g.x, g.y, g.w, g.h);
+  const gris = aGris(recorte);
+  const kp = new cv.KeyPointVector(), des = new cv.Mat(), sinMascara = new cv.Mat();
+  orbRef.detectAndCompute(gris, sinMascara, kp, des);
+  const pts = [];
+  for (let i = 0; i < kp.size(); i++) { const p = kp.get(i).pt; pts.push({ x: p.x, y: p.y }); }
+  gris.delete(); kp.delete(); sinMascara.delete();
+
+  if (pts.length < 25) {
+    des.delete();
+    avisar("Solo encontré " + pts.length + " puntos. Prueba con un objeto con más dibujos o letras, o con más luz.");
+    return;
+  }
+  ocultarAviso();
+
+  // Miniatura con sus puntos característicos
+  const mini = document.createElement("canvas");
+  mini.width = g.w; mini.height = g.h;
+  const mctx = mini.getContext("2d");
+  mctx.putImageData(recorte, 0, 0);
+  const limpio = document.createElement("canvas");
+  limpio.width = g.w; limpio.height = g.h;
+  limpio.getContext("2d").putImageData(recorte, 0, 0);
+
+  const i = objetos.length;
+  const color = COLORES[i % COLORES.length];
+  mctx.fillStyle = color;
+  for (const p of pts) { mctx.beginPath(); mctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2); mctx.fill(); }
+
+  const nombre = $("nombre").value.trim() || "Objeto " + (i + 1);
+  objetos.push({ nombre, color, des, pts, w: g.w, h: g.h, mini, limpio });
+  $("nombre").value = "";
+  elegido = objetos.length - 1;
+  pintarObjetos();
+  if (navigator.vibrate) navigator.vibrate(60);
+}
+
+function avisar(t) { const a = $("avisoFoto"); a.textContent = t; a.classList.remove("hidden"); }
+function ocultarAviso() { $("avisoFoto").classList.add("hidden"); }
+
+function pintarObjetos() {
+  const box = $("objetos");
+  box.innerHTML = "";
+  objetos.forEach((o, i) => {
+    const d = document.createElement("div");
+    d.className = "obj" + (i === elegido ? " sel" : "");
+    d.style.borderColor = i === elegido ? o.color : "";
+    const nom = document.createElement("div"); nom.className = "nom"; nom.textContent = o.nombre; nom.style.color = o.color;
+    const pts = document.createElement("div"); pts.className = "pts"; pts.textContent = o.pts.length + " puntos";
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "✕";
+    x.addEventListener("click", ev => { ev.stopPropagation(); borrar(i); });
+    d.append(o.mini, nom, pts, x);
+    d.addEventListener("click", () => { elegido = i; esquinasSuaves = null; pintarObjetos(); });
+    box.appendChild(d);
+  });
+  const hay = objetos.length > 0;
+  buscarBtn.disabled = !hay || !running;
+  $("ayuda2").innerHTML = hay
+    ? "Buscando: <b style='color:" + objetos[elegido].color + "'>" + objetos[elegido].nombre.replace(/</g, "&lt;") +
+      "</b>. Toca otra foto para cambiar. Luego pulsa Buscar y mueve la cámara por la sala."
+    : "Primero toma la foto de al menos un objeto. Luego tócalo para elegirlo.";
+  if (!hay && buscando) alternarBusqueda();
+}
+
+function borrar(i) {
+  objetos[i].des.delete();
+  objetos.splice(i, 1);
+  if (elegido >= objetos.length) elegido = objetos.length - 1;
+  esquinasSuaves = null;
+  pintarObjetos();
+}
+
+function alternarBusqueda() {
+  buscando = !buscando && objetos.length > 0;
+  buscarBtn.textContent = buscando ? "⏹ Dejar de buscar" : "🔍 Buscar";
+  buscarBtn.classList.toggle("activo", buscando);
+  esquinasSuaves = null;
+  $("encontrado").textContent = "";
+  if (!buscando) for (const id of ["v_frame", "v_good", "v_inl"]) $(id).textContent = "—";
+}
+
+fotoBtn.addEventListener("click", tomarFoto);
+buscarBtn.addEventListener("click", alternarBusqueda);
+$("nombre").addEventListener("keydown", e => { if (e.key === "Enter") tomarFoto(); });
+
+// ---- Paso 2: buscar en el video ----
+function esConvexo(q) {
+  let signo = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4];
+    const z = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(z) < 1e-6) return false;
+    if (!signo) signo = Math.sign(z);
+    else if (Math.sign(z) !== signo) return false;
+  }
+  return true;
+}
+function area(q) {
+  let s = 0;
+  for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4]; s += a.x * b.y - b.x * a.y; }
+  return Math.abs(s) / 2;
+}
+
+function buscar(img) {
+  const o = objetos[elegido];
+  const gris = aGris(img);
+  const kp = new cv.KeyPointVector(), des = new cv.Mat(), sinMascara = new cv.Mat();
+  orb.detectAndCompute(gris, sinMascara, kp, des);
+  gris.delete(); sinMascara.delete();
+
+  const framePts = [];
+  for (let i = 0; i < kp.size(); i++) { const p = kp.get(i).pt; framePts.push({ x: p.x, y: p.y }); }
+  kp.delete();
+
+  // Comparar descriptores: prueba de razón de Lowe (el mejor debe ser claramente mejor que el segundo)
+  const buenos = [];
+  if (des.rows > 1) {
+    const mv = new cv.DMatchVectorVector();
+    bf.knnMatch(o.des, des, mv, 2);
+    for (let i = 0; i < mv.size(); i++) {
+      const par = mv.get(i);
+      if (par.size() >= 2) {
+        const a = par.get(0), b = par.get(1);
+        if (a.distance < 0.75 * b.distance) buenos.push([a.queryIdx, a.trainIdx]);
+      }
+      par.delete();
+    }
+    mv.delete();
+  }
+  des.delete();
+
+  // Verificación geométrica: homografía con RANSAC
+  let esquinas = null, inliers = [];
+  if (buenos.length >= 8) {
+    const src = cv.matFromArray(buenos.length, 1, cv.CV_32FC2, buenos.flatMap(([q]) => [o.pts[q].x, o.pts[q].y]));
+    const dst = cv.matFromArray(buenos.length, 1, cv.CV_32FC2, buenos.flatMap(([, t]) => [framePts[t].x, framePts[t].y]));
+    const mascara = new cv.Mat();
+    const H = cv.findHomography(src, dst, cv.RANSAC, 5, mascara);
+    if (!H.empty() && H.rows === 3) {
+      for (let i = 0; i < buenos.length; i++) if (mascara.data[i]) inliers.push(buenos[i]);
+      if (inliers.length >= minCoinc) {
+        const h = H.data64F;
+        const proyectar = (x, y) => {
+          const w = h[6] * x + h[7] * y + h[8];
+          return { x: (h[0] * x + h[1] * y + h[2]) / w, y: (h[3] * x + h[4] * y + h[5]) / w };
+        };
+        const q = [proyectar(0, 0), proyectar(o.w, 0), proyectar(o.w, o.h), proyectar(0, o.h)];
+        const a = area(q);
+        if (esConvexo(q) && a > PW * PH * 0.01 && a < PW * PH * 4) esquinas = q;
+      }
+    }
+    src.delete(); dst.delete(); mascara.delete(); H.delete();
+  }
+
+  $("v_frame").textContent = framePts.length;
+  $("v_good").textContent = buenos.length;
+  $("v_inl").textContent = inliers.length;
+  return { o, framePts, inliers, esquinas };
+}
+
+// ---- Dibujo ----
+function dibujar(res) {
+  const S = overlay.width / PW;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+
+  if (!buscando) {
+    // Recuadro guía para la foto
+    const g = recuadroGuia();
+    octx.fillStyle = "rgba(0,0,0,.45)";
+    octx.fillRect(0, 0, overlay.width, overlay.height);
+    octx.clearRect(g.x * S, g.y * S, g.w * S, g.h * S);
+    octx.strokeStyle = "#00e5ff"; octx.lineWidth = 3;
+    octx.setLineDash([14, 10]);
+    octx.strokeRect(g.x * S, g.y * S, g.w * S, g.h * S);
+    octx.setLineDash([]);
+    return;
+  }
+  if (!res) return;
+  const { o, framePts, inliers, esquinas } = res;
+  const ver = $("verPuntos").checked;
+
+  if (ver) {
+    octx.fillStyle = "rgba(255,255,255,.55)";
+    for (const p of framePts) octx.fillRect(p.x * S - 1.5, p.y * S - 1.5, 3, 3);
+  }
+
+  // Suavizado para que el recuadro no tiemble
+  if (esquinas) {
+    perdidos = 0;
+    esquinasSuaves = esquinasSuaves
+      ? esquinasSuaves.map((p, i) => ({ x: p.x * 0.5 + esquinas[i].x * 0.5, y: p.y * 0.5 + esquinas[i].y * 0.5 }))
+      : esquinas;
+  } else if (++perdidos > 4) {
+    esquinasSuaves = null;
+  }
+
+  if (ver && inliers.length) {
+    // Miniatura de la foto con líneas hacia las coincidencias
+    const mw = overlay.width * 0.26, ms = mw / o.w, mh = o.h * ms;
+    const mx = 8, my = overlay.height - mh - 40;
+    octx.globalAlpha = 0.9;
+    octx.drawImage(o.limpio, mx, my, mw, mh);
+    octx.globalAlpha = 1;
+    octx.strokeStyle = o.color; octx.lineWidth = 2; octx.strokeRect(mx, my, mw, mh);
+    octx.lineWidth = 1.2; octx.strokeStyle = "rgba(0,229,255,.7)";
+    octx.beginPath();
+    for (const [q, t] of inliers.slice(0, 40)) {
+      octx.moveTo(mx + o.pts[q].x * ms, my + o.pts[q].y * ms);
+      octx.lineTo(framePts[t].x * S, framePts[t].y * S);
+    }
+    octx.stroke();
+    octx.fillStyle = o.color;
+    for (const [, t] of inliers) {
+      octx.beginPath(); octx.arc(framePts[t].x * S, framePts[t].y * S, 4, 0, Math.PI * 2); octx.fill();
+    }
+  }
+
+  const aviso = $("encontrado");
+  if (esquinasSuaves) {
+    const q = esquinasSuaves;
+    octx.lineWidth = 5; octx.strokeStyle = o.color;
+    octx.beginPath();
+    octx.moveTo(q[0].x * S, q[0].y * S);
+    for (let i = 1; i < 4; i++) octx.lineTo(q[i].x * S, q[i].y * S);
+    octx.closePath(); octx.stroke();
+    octx.fillStyle = o.color + "33"; octx.fill();
+    // Etiqueta con el nombre
+    const top = q.reduce((a, b) => (b.y < a.y ? b : a));
+    const fs = Math.round(overlay.width * 0.042);
+    octx.font = "800 " + fs + "px system-ui, sans-serif";
+    const tw = octx.measureText(o.nombre).width + 14;
+    const lx = Math.min(Math.max(0, top.x * S - tw / 2), overlay.width - tw);
+    let ly = top.y * S - fs - 14;
+    // Si quedaría tapada por el texto de arriba, la ponemos debajo del recuadro
+    if (ly < overlay.height * 0.14) {
+      const abajo = q.reduce((a, b) => (b.y > a.y ? b : a));
+      ly = Math.min(overlay.height - fs - 10, abajo.y * S + 8);
+    }
+    octx.fillStyle = o.color; octx.fillRect(lx, ly, tw, fs + 10);
+    octx.fillStyle = "#000"; octx.textBaseline = "top"; octx.fillText(o.nombre, lx + 7, ly + 5);
+    aviso.textContent = "✅ ¡Encontré: " + o.nombre + "!";
+    aviso.style.color = o.color;
+  } else {
+    aviso.textContent = "🔍 Buscando " + o.nombre + "...";
+    aviso.style.color = "#ffd600";
+  }
+}
+
+// ---- Bucle ----
+function loop() {
+  if (!running) return;
+  const img = capturar();
+  if (img && cv) {
+    let res = null;
+    if (buscando && elegido >= 0) {
+      const t0 = performance.now();
+      res = buscar(img);
+      $("ms").textContent = Math.round(performance.now() - t0) + " ms";
+      $("v_ref").textContent = objetos[elegido].pts.length;
+    }
+    $("modoTxt").textContent = buscando ? "Paso 2: buscando en el video" : "Paso 1: encuadra el objeto";
+    dibujar(res);
+  }
+  tickFPS();
+  requestAnimationFrame(loop);
+}
+
+async function startCamera() {
+  try {
+    if (!cv) await prepararOpenCV();
+  } catch (err) {
+    statusEl.textContent = "No se pudo cargar OpenCV: " + (err.message || err) + " (revisa tu conexión a internet)";
+    return;
+  }
+  try {
+    statusEl.textContent = "Solicitando cámara...";
+    await cam.iniciar();
+    switchBtn.classList.remove("hidden");
+    startBtn.textContent = "⏸ Detener";
+    statusEl.textContent = "";
+    fotoBtn.disabled = false;
+    if (!running) { running = true; pintarObjetos(); loop(); }
+  } catch (err) {
+    statusEl.textContent = mensajeErrorCamara(err);
+  }
+}
+
+function stopCamera() {
+  running = false;
+  cam.detener();
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  fotoBtn.disabled = true;
+  if (buscando) alternarBusqueda();
+  buscarBtn.disabled = true;
+  startBtn.textContent = "▶ Iniciar cámara";
+  statusEl.textContent = "Cámara detenida.";
+}
+
+startBtn.addEventListener("click", () => { running ? stopCamera() : startCamera(); });
+switchBtn.addEventListener("click", async () => {
+  try { await cam.cambiar(); esquinasSuaves = null; } catch (err) { statusEl.textContent = mensajeErrorCamara(err); }
+});
+</script>
+</body>
+</html>

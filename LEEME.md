@@ -70,9 +70,9 @@ Menú con todas las demos: `https://TU_USUARIO.github.io/expo-expresiones/menu/`
 | `/` (raíz) | Expresiones faciales | Clasificación |
 | `objetos/` | Detector de objetos + búsqueda del tesoro | Detección (qué hay y dónde) |
 | `manos/` | Piedra, papel o tijera contra la IA | Puntos clave (21 puntos de la mano) |
-| `entrena/` | Entrena tu propia IA | Aprendizaje con ejemplos, sesgo en los datos |
+| `buscar/` | Busca mi objeto (foto → lo encuentra en el video) | Puntos característicos tipo SIFT/SURF (ORB + homografía RANSAC, OpenCV.js) |
 
-- Las demos 3, 4 y 5 usan **MediaPipe** (Google) y descargan su modelo la primera vez
-  (4–8 MB). Pide al público abrir el enlace al inicio de la charla.
+- Las demos 3 y 4 usan **MediaPipe** (Google) y descargan su modelo la primera vez
+  (7–8 MB). La demo 5 usa **OpenCV.js** (~11 MB). Pide al público abrir el enlace al inicio de la charla.
 - `comun/` tiene el estilo y el código de cámara compartidos: súbelo junto con las carpetas.
 - Todo se procesa en el celular; ninguna imagen sale del dispositivo.
